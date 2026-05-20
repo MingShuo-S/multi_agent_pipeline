@@ -6,6 +6,8 @@ import { styleGetProfile, styleRecordFeedback, memoryTools } from './tools/memor
 import { workspaceConfig, workspaceConfigTool } from './tools/workspace-config.js';
 import { agentGuideGenerator, agentGuideTool } from './tools/agent-guide-generator.js';
 import { routeMessage, routeMessageTool } from './tools/route-message.js';
+import { pipelineStart, pipelineStartTool } from './tools/pipeline-start.js';
+import { pipelineContinue, pipelineContinueTool } from './tools/pipeline-continue.js';
 import { WorkspaceConfigManager } from './tools/workspace-config.js';
 
 // 获取工作区根目录（从环境或默认位置）
@@ -152,6 +154,44 @@ export const tools = {
           context,
           params.target_agent,
           params.message
+        );
+        return { success: true, data: result };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    },
+  },
+
+  // 管道启动工具
+  pipeline_start: {
+    ...pipelineStartTool,
+    handler: async (params: Record<string, any>) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const result = await pipelineStart(
+          params.template_name,
+          params.user_id,
+          params.project_id,
+          workspaceRoot
+        );
+        return { success: true, data: result };
+      } catch (err) {
+        return { success: false, error: String(err) };
+      }
+    },
+  },
+
+  // 管道继续工具
+  pipeline_continue: {
+    ...pipelineContinueTool,
+    handler: async (params: Record<string, any>) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const result = await pipelineContinue(
+          params.user_id,
+          params.project_id,
+          params.feedback,
+          workspaceRoot
         );
         return { success: true, data: result };
       } catch (err) {

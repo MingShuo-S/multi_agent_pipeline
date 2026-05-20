@@ -33,7 +33,9 @@
         "style_record_feedback",
         "route_message",
         "workspace_config",
-        "agent_guide_generator"
+        "agent_guide_generator",
+        "pipeline_start",
+        "pipeline_continue"
       ]
     }
   },

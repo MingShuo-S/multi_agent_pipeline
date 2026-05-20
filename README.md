@@ -513,160 +513,168 @@ tools:
 }
 ```
 
-### Step 4a: 启动管道（确定性执行）
+### Step 4: 启动管道（通过对话驱动）
 
-在一个终端，启动管道运行时：
+**完全通过 Dashboard 对话完成，无需 SSH 或 CLI。**
 
-```bash
-multi-agent-pipeline start xiaohongshu-creation --user=alice --project=camping-post
-```
-
-管道将：
-
-1. 从 `template.json` 读取 stages 定义
-2. 按顺序派发 Agent：topic-researcher → web-researcher → content-writer → quality-reviewer → publisher
-3. 每个 Agent 通过 `pipeline_write_slot` 提交后，管道推进下一阶段
-4. 遇到 `checkpoint: true` 的阶段时暂停，等待用户确认
-
-**示例输出**：
+用户在 Dashboard 与指挦家对话：
 
 ```
-[Stage 0] topic-research (topic-researcher)
-  → Waiting for topic-researcher to write 'topic_brief'...
-  → Done! Written: "露营新手装备推荐"
+User: "用小红书模板帮我创作一篇露营笔记，用户 alice，项目 camping-post"
 
-[Stage 1] web-research (web-researcher)
-  → Waiting for web-researcher to write 'research_notes'...
-  → Done! Written: "2025 年装备趋势..."
+Orchestrator (指挦家):
+  1. 识别意图
+  2. 调用 pipeline_start(template_name: "xiaohongshu-creation", 
+                          user_id: "alice", 
+                          project_id: "camping-post")
+  
+  [系统执行]
+  ✓ 初始化 state.json
+  ✓ Stage 0: topic-researcher 完成 topic_brief
+  ✓ Stage 1: web-researcher 完成 research_notes
+  ✓ Stage 2: content-writer 完成 draft_content (checkpoint!)
+  
+Orchestrator 返回：
 
-[Checkpoint] draft-writing (content-writer)
-  → Draft complete. Awaiting user confirmation...
-  → User: "改得活泼点"
-  → Sending feedback to content-writer...
-  → content-writer revised and resubmitted
-  → Confirmed, proceeding to next stage...
-```
+"✅ 已完成：draft-writing 阶段
 
-### Step 4b: 启动对话指挦家（灵活交互）
+内容已写入 draft_content，请检查：
+---
+露营新手装备推荐
+这个春天，如果你还没想好去哪玩...
+---
 
-在另一个终端，启动指挦家：
-
-```bash
-openclaw run orchestrator
-```
-
-现在用户可以：
-
-1. **乱序对话**：
-   ```
-   User: "问问 web-researcher 最新的露营装备有哪些？"
-   → 指挦家调用 route_message(target: "web-researcher", message: "...")
-   → web-researcher 回答
-   ```
-
-2. **查看和修改配置**：
-   ```
-   User: "看看我对 content-writer 的风格记忆"
-   → 指挦家调用 workspace_config(action: "read_memory", ...)
-   → 展示 profile.json
-   ```
-
-3. **Checkpoint 交互**（当管道暂停时）：
-   ```
-   [管道显示] 初稿已完成，waiting for confirmation...
-   User: "让我看看，太正式了，改活泼点"
-   → 指挦家调用 route_message(target: "content-writer", message: "改活泼点，加 emoji")
-   → content-writer 修改并通过 pipeline_write_slot 重新提交
-   User: "好的，继续"
-   → 指挦家确认，管道推进
-   ```
+输入'agree'继续发布，或直接说修改意见。"
 
 ---
 
-## 多轮修改流程
+User: "太正式了，改得活泼点，加 emoji"
 
-假设 content-writer 已经完成初稿，checkpoint 触发：
+Orchestrator:
+  调用 pipeline_continue(user_id: "alice", 
+                        project_id: "camping-post",
+                        feedback: "太正式了，改得活泼点，加 emoji")
+  
+  [系统执行]
+  ✗ 反馈不是 "agree"
+  → 路由给 content-writer 修改
+  → content-writer 在同一会话中修改产出
+  → 覆盖 draft_content
 
-**迭代 1**：
+Orchestrator 返回：
 
-- content-writer 写入 `draft_content` → 管道暂停
-- quality-reviewer 调用 `pipeline_add_remark` 添加建议
-- 指挦家展示草稿 + remarks 给用户
+"✅ 已重新提交。请确认修改是否满意，或继续反馈。
 
-**用户反馈**：
+---
+🏕️ 露营新手装备推荐，超实用！
+春天到了，想出去玩但不知道怎么准备？别怕...
+---"
 
+---
+
+User: "agree"
+
+Orchestrator:
+  调用 pipeline_continue(user_id: "alice", 
+                        project_id: "camping-post",
+                        feedback: "agree")
+  
+  [系统执行]
+  ✓ 推进 stage++
+  ✓ Stage 3: quality-reviewer 完成 review_feedback
+  ✓ Stage 4: publisher 完成 final_output (最后一个)
+  ✓ 管道完成
+
+Orchestrator 返回：
+
+"✨ 小红书笔记已发布！
+
+最终版本：
+---
+🏕️ 露营新手装备推荐，超实用！
+...（最终版本）
+---
+
+整个流程已完成。下次继续？"
 ```
-User: "第二段太学术，改成口语化。加上三个 emoji"
-```
 
-**迭代 2**：
+---
 
-- 指挦家调用 `route_message(target: "content-writer", message: "...")`
-- content-writer 在原会话中接收反馈，修改第二段
-- content-writer 再次调用 `pipeline_write_slot`（覆盖旧版本）
-- quality-reviewer 再次 `pipeline_read`，检查新版本，可选添加新 remark
+## 12 个工具完整列表
 
-**用户确认**：
+### 核心工具组（5 个）— 管道协作
 
-```
-User: "很好，继续"
-```
+- `pipeline_read` - 读取 Slot 和管道状态
+- `pipeline_write_slot` - 写入 Slot（只有 owner 可写）
+- `pipeline_add_remark` - 为 Slot 添加批注
+- `style_get_profile` - 获取 Agent 的长期记忆
+- `style_record_feedback` - 记录用户反馈并更新记忆
 
-- 指挦家确认，管道推进下一阶段
+### 指挦家工具组（5 个）— 对话和配置
+
+- `route_message` - 路由消息给指定 Agent
+- `workspace_config` - 查看/修改模板和记忆
+- `agent_guide_generator` - 为 Agent 生成协作指南
+- `pipeline_start` - 启动管道，执行到第一个 checkpoint
+- `pipeline_continue` - 处理反馈，推进管道或修改当前阶段
+
+### 辅助工具组（2 个）— 执行日志
+
+- `execution_log_append` - 记录 Agent 执行步骤
+- `execution_log_read` - 查看 Agent 执行日志
 
 ---
 
 ## 典型使用场景
 
-### 场景 1: 线性流程（纯管道执行）
+### 场景 1: 简单对话启动（Dashboard 一次完成）
 
 ```
-User: "用小红书模板创作露营笔记"
+用户: "用小红书模板创作露营笔记，alice，camping"
 ↓
-管道自动推进：
-  1. topic-researcher 提炼主题
-  2. web-researcher 搜集素材
-  3. content-writer 生成初稿（checkpoint）
-  4. quality-reviewer 评审 (checkpoint)
-  5. publisher 发布
+指挦家调用 pipeline_start → 自动执行所有非 checkpoint 阶段 → 暂停
+指挦家: "✅ 初稿已完成，请检查..."
+用户: "agree"
+↓
+指挦家调用 pipeline_continue → 推进到下一 checkpoint 或完成
+指挦家: "✨ 已发布！"
 ```
 
-### 场景 2: 交互式流程（对话 + Checkpoint）
+### 场景 2: 多轮修改（Dashboard 中持续反馈）
 
 ```
-管道启动...
-[Checkpoint] content-writer 完成初稿
+指挦家: "✅ 初稿已完成，请检查..."
+用户: "改活泼点，加 emoji"
 ↓
-User (via orchestrator): "太正式了"
+指挦家调用 pipeline_continue(feedback: "改活泼点...")
+系统路由给 content-writer 修改并重新提交
+指挦家: "✅ 已修改，请确认..."
+用户: "很好，agree"
 ↓
-Orchestrator: 路由给 content-writer
-↓
-content-writer 修改并重新提交
-↓
-User: "好的，继续"
-↓
-管道推进下一阶段
+指挦家调用 pipeline_continue(feedback: "agree")
+推进下一阶段...
 ```
 
-### 场景 3: 乱序对话（指挦家常驻）
+### 场景 3: 乱序对话（中途咨询其他 Agent）
 
 ```
-User: "问问 web-researcher 有没有最新数据"
+[管道运行中，暂停在 checkpoint]
+用户: "先问问 web-researcher 有没有最新的露营数据"
 ↓
-Orchestrator: route_message(target: "web-researcher")
+指挦家调用 route_message(target: "web-researcher", message: "...")
+web-researcher 回答相关数据
 ↓
-web-researcher 回答
+用户: "用这个信息改一下草稿，改活泼点"
 ↓
-User: "用这个数据修改草稿"
+指挦家调用 pipeline_continue(feedback: "用...改活泼点")
+系统路由给 content-writer 修改
 ↓
-Orchestrator: route_message(target: "content-writer")
+用户: "好的，agree"
 ↓
-content-writer 修改并提交
+管道继续推进
 ```
 
 ---
-
-## 常见问题
 
 ### Q: Slot 被其他 Agent 改了怎么办？
 
