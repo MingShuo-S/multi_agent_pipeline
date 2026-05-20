@@ -14,37 +14,69 @@ import { WorkspaceConfigManager } from './tools/workspace-config.js';
  * OpenClaw 插件生命周期钩子
  */
 let pluginConfig: Record<string, any> = {};
+let pluginId: string = 'multi-agent-pipeline';
 
 export function register(context: any): void {
-  pluginConfig = context?.config || {};
-  console.log('[multi-agent-pipeline] Plugin registered with context:', context?.config?.id);
+  try {
+    // 记录完整的 context 结构用于调试
+    console.log('[multi-agent-pipeline] Register context keys:', Object.keys(context || {}));
+    console.log('[multi-agent-pipeline] Register context.config:', context?.config);
+    console.log('[multi-agent-pipeline] Register context.id:', context?.id);
+    
+    // 尝试从各种可能的位置获取配置
+    pluginConfig = context?.config || context?.options || context?.settings || {};
+    pluginId = context?.id || context?.config?.id || context?.pluginId || 'multi-agent-pipeline';
+    
+    console.log('[multi-agent-pipeline] ✓ Plugin registered successfully');
+    console.log('[multi-agent-pipeline] Plugin ID:', pluginId);
+    console.log('[multi-agent-pipeline] Plugin config keys:', Object.keys(pluginConfig));
+  } catch (err) {
+    console.error('[multi-agent-pipeline] ✗ Register error:', err);
+  }
 }
 
 export function activate(context: any): void {
-  pluginConfig = context?.config || {};
-  console.log('[multi-agent-pipeline] Plugin activated with context:', context?.config?.id);
+  try {
+    console.log('[multi-agent-pipeline] Activating plugin...');
+    console.log('[multi-agent-pipeline] Activate context keys:', Object.keys(context || {}));
+    
+    // 同样的配置提取逻辑
+    pluginConfig = context?.config || context?.options || context?.settings || pluginConfig;
+    pluginId = context?.id || context?.config?.id || context?.pluginId || pluginId;
+    
+    console.log('[multi-agent-pipeline] ✓ Plugin activated successfully');
+  } catch (err) {
+    console.error('[multi-agent-pipeline] ✗ Activate error:', err);
+  }
 }
 
 // 获取工作区根目录（从环境或默认位置）
 function getWorkspaceRoot(): string {
   // 优先级1：插件配置中的工作区根目录
   if (pluginConfig?.workspaceRoot) {
+    console.log('[multi-agent-pipeline] Using workspace from plugin config:', pluginConfig.workspaceRoot);
     return pluginConfig.workspaceRoot;
   }
   
   // 优先级2：显式设置的工作区根目录环境变量
   if (process.env.PIPELINE_WORKSPACE_ROOT) {
+    console.log('[multi-agent-pipeline] Using workspace from PIPELINE_WORKSPACE_ROOT env:', process.env.PIPELINE_WORKSPACE_ROOT);
     return process.env.PIPELINE_WORKSPACE_ROOT;
   }
   
   // 优先级3：OpenClaw 主目录配置
   if (process.env.OPENCLAW_HOME) {
-    return `${process.env.OPENCLAW_HOME}/workspaces/multi-agent-pipeline`;
+    const workspace = `${process.env.OPENCLAW_HOME}/workspaces/multi-agent-pipeline`;
+    console.log('[multi-agent-pipeline] Using workspace from OPENCLAW_HOME env:', workspace);
+    return workspace;
   }
   
   // 优先级4：标准的 ~/.openclaw/workspaces/multi-agent-pipeline
   const home = process.env.HOME || process.env.USERPROFILE || '/root';
-  return `${home}/.openclaw/workspaces/multi-agent-pipeline`;
+  const workspace = `${home}/.openclaw/workspaces/multi-agent-pipeline`;
+  console.log('[multi-agent-pipeline] Using default workspace path:', workspace);
+  console.log('[multi-agent-pipeline] Environment: HOME=' + (process.env.HOME || 'unset') + ', USERPROFILE=' + (process.env.USERPROFILE || 'unset'));
+  return workspace;
 }
 
 // 获取工具上下文（从 OpenClaw 运行时传入）
@@ -67,6 +99,7 @@ export const tools = {
     handler: async (params: Record<string, any>) => {
       try {
         const context = getContext();
+        console.log('[multi-agent-pipeline] pipeline_read called with context:', { workspace_root: context.workspace_root, user_id: context.user_id, slot_name: params.slot_name });
         const configManager = new WorkspaceConfigManager(context.workspace_root);
         const state = (await import('./runtime/state-manager.js')).StateManager;
         const stateManager = new state(context.workspace_root, context.user_id, context.project_id);
@@ -76,6 +109,7 @@ export const tools = {
         const result = await pipelineRead(context, params.slot_name, template);
         return { success: true, data: result };
       } catch (err) {
+        console.error('[multi-agent-pipeline] pipeline_read error:', err);
         return { success: false, error: String(err) };
       }
     },
