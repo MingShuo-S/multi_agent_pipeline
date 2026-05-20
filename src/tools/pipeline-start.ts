@@ -139,6 +139,7 @@ async function stateExists_check(stateManager: StateManager): Promise<boolean> {
  * pipeline_start 工具定义
  */
 export const pipelineStartTool = {
+  id: 'pipeline_start',
   name: 'pipeline_start',
   description: '启动管道项目，初始化状态文件，并执行所有非 checkpoint 阶段直到遇到第一个 checkpoint 或完成。返回当前产出给用户确认。',
   parameters: {

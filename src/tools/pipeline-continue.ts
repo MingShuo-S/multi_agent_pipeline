@@ -31,6 +31,7 @@ export interface ContinueResult {
  * pipeline_continue 工具定义
  */
 export const pipelineContinueTool = {
+  id: 'pipeline_continue',
   name: 'pipeline_continue',
   description: '处理用户反馈并继续推进管道。如果反馈不是"agree"，则路由给当前 Agent 进行修改；如果是"agree"，则推进到下一阶段直到下一个 checkpoint 或完成。',
   parameters: {
