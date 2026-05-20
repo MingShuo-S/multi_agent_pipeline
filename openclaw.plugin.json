@@ -1,0 +1,14 @@
+{
+  "id": "multi-agent-pipeline",
+  "name": "通用多 Agent 流水线引擎",
+  "description": "Slot 所有权 + Remark 追溯 + 用户级进化记忆，支持多 Agent 协作流水线",
+  "version": "0.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  },
+  "activation": {
+    "onStartup": true
+  }
+}

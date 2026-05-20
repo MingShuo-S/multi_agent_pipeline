@@ -1,0 +1,60 @@
+{
+  "name": "xiaohongshu-creation",
+  "version": "1.0",
+  "description": "小红书内容创作八步闭环（人机协作版）",
+  "agents": [
+    { "id": "topic-researcher", "description": "选题专家", "memory": false },
+    { "id": "web-researcher", "description": "调研专家", "memory": false },
+    { "id": "content-writer", "description": "写作专家", "memory": true },
+    { "id": "quality-reviewer", "description": "审核专家", "memory": false },
+    { "id": "publisher", "description": "发布专家", "memory": false }
+  ],
+  "stages": [
+    {
+      "name": "topic",
+      "agent": "topic-researcher",
+      "read_slots": ["topic_input"],
+      "write_slot": "topic_output",
+      "human_checkpoint": true,
+      "description": "选题：生成差异化选题"
+    },
+    {
+      "name": "research",
+      "agent": "web-researcher",
+      "read_slots": ["topic_output"],
+      "write_slot": "research_output",
+      "human_checkpoint": true,
+      "description": "调研：全网竞品分析"
+    },
+    {
+      "name": "writing",
+      "agent": "content-writer",
+      "read_slots": ["topic_output", "research_output", "outline_input"],
+      "write_slot": "draft_output",
+      "human_checkpoint": true,
+      "description": "写作：基于大纲和风格档案生成正文",
+      "memory": true
+    },
+    {
+      "name": "review",
+      "agent": "quality-reviewer",
+      "read_slots": ["draft_output", "topic_output", "research_output"],
+      "write_slot": "review_output",
+      "human_checkpoint": true,
+      "description": "审核：联网事实核查 + 撞车检测"
+    },
+    {
+      "name": "publish",
+      "agent": "publisher",
+      "read_slots": ["draft_output", "review_output"],
+      "write_slot": "publish_output",
+      "human_checkpoint": true,
+      "description": "发布：标题优化 + 标签生成"
+    }
+  ],
+  "flow": {
+    "type": "linear",
+    "default": ["topic", "research", "writing", "review", "publish"],
+    "rollback": "orchestrator"
+  }
+}
