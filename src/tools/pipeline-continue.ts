@@ -1,10 +1,16 @@
 // src/tools/pipeline-continue.ts - 处理用户反馈并继续推进管道
 
+import { homedir } from 'os';
+import { join } from 'path';
 import { ToolContext, PipelineState, Template } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { routeMessage } from './route-message.js';
 import { executeUntilCheckpoint } from './pipeline-start.js';
+
+// 正确的全局工作区路径
+const OPENCLAW_HOME = process.env.OPENCLAW_HOME || join(homedir(), '.openclaw');
+const WORKSPACE_ROOT = join(OPENCLAW_HOME, 'workspaces', 'multi-agent-pipeline');
 
 export interface ContinueResult {
   status: 'revised' | 'checkpoint_reached' | 'completed' | 'error';
@@ -57,8 +63,9 @@ export async function pipelineContinue(
   workspaceRoot: string
 ): Promise<ContinueResult> {
   try {
-    const stateManager = new StateManager(workspaceRoot, userId, projectId);
-    const configManager = new WorkspaceConfigManager(workspaceRoot);
+    const finalWorkspaceRoot = workspaceRoot || WORKSPACE_ROOT;
+    const stateManager = new StateManager(finalWorkspaceRoot, userId, projectId);
+    const configManager = new WorkspaceConfigManager(finalWorkspaceRoot);
 
     // 加载当前状态
     let state: PipelineState;
@@ -96,7 +103,7 @@ export async function pipelineContinue(
 
       // 继续执行直到下一个 checkpoint
       const result = await executeUntilCheckpoint(
-        workspaceRoot,
+        finalWorkspaceRoot,
         userId,
         projectId,
         state.template_name,
