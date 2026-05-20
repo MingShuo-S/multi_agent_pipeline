@@ -10,19 +10,52 @@ import { pipelineStart, pipelineStartTool } from './tools/pipeline-start.js';
 import { pipelineContinue, pipelineContinueTool } from './tools/pipeline-continue.js';
 import { WorkspaceConfigManager } from './tools/workspace-config.js';
 
+/**
+ * OpenClaw 插件生命周期钩子
+ */
+let pluginConfig: Record<string, any> = {};
+
+export function register(context: any): void {
+  pluginConfig = context?.config || {};
+  console.log('[multi-agent-pipeline] Plugin registered with context:', context?.config?.id);
+}
+
+export function activate(context: any): void {
+  pluginConfig = context?.config || {};
+  console.log('[multi-agent-pipeline] Plugin activated with context:', context?.config?.id);
+}
+
 // 获取工作区根目录（从环境或默认位置）
 function getWorkspaceRoot(): string {
-  return process.env.PIPELINE_WORKSPACE_ROOT || 
-    `${process.env.HOME || process.env.USERPROFILE}/.openclaw/workspaces/multi-agent-pipeline`;
+  // 优先级1：插件配置中的工作区根目录
+  if (pluginConfig?.workspaceRoot) {
+    return pluginConfig.workspaceRoot;
+  }
+  
+  // 优先级2：显式设置的工作区根目录环境变量
+  if (process.env.PIPELINE_WORKSPACE_ROOT) {
+    return process.env.PIPELINE_WORKSPACE_ROOT;
+  }
+  
+  // 优先级3：OpenClaw 主目录配置
+  if (process.env.OPENCLAW_HOME) {
+    return `${process.env.OPENCLAW_HOME}/workspaces/multi-agent-pipeline`;
+  }
+  
+  // 优先级4：标准的 ~/.openclaw/workspaces/multi-agent-pipeline
+  const home = process.env.HOME || process.env.USERPROFILE || '/root';
+  return `${home}/.openclaw/workspaces/multi-agent-pipeline`;
 }
 
 // 获取工具上下文（从 OpenClaw 运行时传入）
 function getContext(): ToolContext {
+  const workspaceRoot = getWorkspaceRoot();
+  
   return {
     agent_name: process.env.AGENT_NAME || 'unknown',
     user_id: process.env.USER_ID || 'default-user',
     project_id: process.env.PROJECT_ID || 'default-project',
-    workspace_root: getWorkspaceRoot(),
+    workspace_root: workspaceRoot,
   };
 }
 

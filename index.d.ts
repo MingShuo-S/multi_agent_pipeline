@@ -1,3 +1,5 @@
+export declare function register(context: any): void;
+export declare function activate(context: any): void;
 export declare const tools: {
     pipeline_read: {
         handler: (params: Record<string, any>) => Promise<{
