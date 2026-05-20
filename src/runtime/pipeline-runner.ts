@@ -1,11 +1,13 @@
 // src/runtime/pipeline-runner.ts - 管道运行时主循环
 
 import readline from 'readline';
+import type { Template, PipelineState, ToolContext } from '../types.js';
 import { StateManager } from './state-manager.js';
 import { PromptBuilder } from './prompt-builder.js';
 import { WorkspaceConfigManager } from '../tools/workspace-config.js';
 import { MemoryManager } from '../tools/memory.js';
 import { AgentGuideGenerator } from '../tools/agent-guide-generator.js';
+import { SkillRunner } from './skill-runner.js';
 
 export class PipelineRunner {
   private stateManager: StateManager;
@@ -134,4 +136,89 @@ export class PipelineRunner {
   private prompt(question: string, callback: (answer: string) => void): void {
     this.rl.question(question, callback);
   }
+}
+
+/**
+ * 执行管道直到遇到 checkpoint 或完成
+ * 被 pipeline_start 和 pipeline_continue 调用
+ */
+export async function executeUntilCheckpoint(
+  stateManager: StateManager,
+  template: Template,
+  context: ToolContext
+): Promise<any> {
+  let state = await stateManager.load();
+  const workspaceRoot = context.workspace_root;
+
+  while (state.current_stage < template.stages.length) {
+    const stage = template.stages[state.current_stage];
+    const promptBuilder = new PromptBuilder(
+      workspaceRoot,
+      context.user_id,
+      context.project_id
+    );
+
+    const profile = await new MemoryManager(
+      workspaceRoot,
+      context.user_id,
+      stage.agent
+    ).getProfile();
+
+    const prompt = await promptBuilder.buildPipelinePrompt(
+      stage.agent,
+      template,
+      state,
+      profile
+    );
+
+    // 执行 Agent（调用 SkillRunner）
+    try {
+      await SkillRunner.run({
+        agentName: stage.agent,
+        userId: context.user_id,
+        projectId: context.project_id,
+        template,
+        state,
+        additionalTools: [
+          { id: 'pipeline_read', name: 'pipeline_read' },
+          { id: 'pipeline_write_slot', name: 'pipeline_write_slot' },
+          { id: 'pipeline_add_remark', name: 'pipeline_add_remark' },
+          { id: 'style_get_profile', name: 'style_get_profile' },
+          { id: 'style_record_feedback', name: 'style_record_feedback' },
+        ],
+      });
+    } catch (err) {
+      console.error(`Agent ${stage.agent} execution failed:`, err);
+    }
+
+    // 重新加载 state（Agent 可能已修改）
+    state = await stateManager.load();
+
+    // 检查是否达到 checkpoint
+    if (stage.checkpoint) {
+      const slotOutput = stage.allow_write.map(slot => ({
+        slot_name: slot,
+        value: state.slot_values[slot],
+      }));
+
+      return {
+        status: 'checkpoint_reached',
+        current_stage: state.current_stage,
+        current_stage_name: stage.id,
+        checkpoint_required: true,
+        slot_outputs: slotOutput,
+        message: `✅ ${stage.id} 阶段已完成。请检查产出，输入 "agree" 继续，或告诉我修改意见。`,
+      };
+    }
+
+    // 否则推进到下一阶段
+    await stateManager.advanceStage();
+    state = await stateManager.load();
+  }
+
+  return {
+    status: 'completed',
+    message: '✅ 管道已全部执行完毕。',
+    final_slots: state.slot_values,
+  };
 }
