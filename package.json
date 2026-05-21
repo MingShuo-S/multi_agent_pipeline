@@ -30,7 +30,7 @@
     "@types/node": "^20.19.41",
     "@types/yargs": "^17.0.35",
     "typescript": "^6.0.3",
-    "openclaw": "^2026.5.18"
+    "openclaw": "^2026.5.19"
   },
   "peerDependencies": {
     "openclaw": ">=2026.5.18"
@@ -47,8 +47,8 @@
       "minGatewayVersion": ">=2026.5.18"
     },
     "build": {
-      "openclawVersion": "2026.5.18",
-      "pluginSdkVersion": "2026.5.18"
+      "openclawVersion": "2026.5.19",
+      "pluginSdkVersion": "2026.5.19"
     }
   }
 }

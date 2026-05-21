@@ -10,7 +10,11 @@
  */
 
 import { Type } from '@sinclair/typebox';
-import { definePluginEntry } from 'openclaw/plugin-sdk/plugin-entry';
+import { 
+  definePluginEntry, 
+  type OpenClawPluginApi,
+  type OpenClawPluginToolContext
+} from 'openclaw/plugin-sdk/plugin-entry';
 import { homedir } from 'os';
 import { join } from 'path';
 
@@ -32,14 +36,34 @@ function getWorkspaceRoot(): string {
 }
 
 /**
- * 获取运行时上下文
+ * 从插件上下文获取运行时上下文
  */
-function getContext() {
+function getContextFromToolContext(ctx: OpenClawPluginToolContext) {
   return {
-    agent_name: process.env.OPENCLAW_AGENT_NAME || 'unknown',
+    agent_name: ctx.agentId || 'unknown',
     user_id: process.env.OPENCLAW_USER_ID || 'default-user',
     project_id: process.env.OPENCLAW_PROJECT_ID || 'default-project',
     workspace_root: getWorkspaceRoot(),
+  };
+}
+
+/**
+ * 创建文本结果的辅助函数
+ */
+function textResult(text: string, details: any = {}) {
+  return {
+    content: [{ type: 'text' as const, text }],
+    details
+  };
+}
+
+/**
+ * 创建 JSON 结果的辅助函数
+ */
+function jsonResult(payload: any) {
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }],
+    details: payload
   };
 }
 
@@ -51,55 +75,54 @@ export default definePluginEntry({
   name: '通用多 Agent 流水线引擎',
   description: 'Slot 所有权 + Remark 追溯 + 用户级进化记忆，支持多 Agent 协作流水线',
   
-  configSchema: Type.Object({
-    workspaceRoot: Type.Optional(Type.String({
-      description: 'Pipeline workspace root directory (defaults to ~/.openclaw/workspaces/multi-agent-pipeline)'
-    })),
-  }),
+  configSchema: {
+    validate: (value: unknown) => {
+      if (typeof value !== 'object' || value === null) {
+        return { ok: false, errors: ['Config must be an object'] };
+      }
+      return { ok: true, value };
+    }
+  },
 
-  register(api) {
+  register(api: OpenClawPluginApi) {
     // 注册 pipeline_read 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'pipeline_read',
+      label: 'pipeline_read',
       description: '读取管道中当前阶段允许的 Slot 内容。当前 Agent 只能读取授权给自己的 slot。',
       parameters: Type.Object({
         slot_name: Type.String({ description: '要读取的 Slot 名称' }),
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
+          const context = getContextFromToolContext(ctx);
           const configManager = new WorkspaceConfigManager(context.workspace_root);
-          const stateManagerModule = await import('./runtime/state-manager.js');
-          const stateManager = new stateManagerModule.StateManager(
+          const { StateManager } = await import('./runtime/state-manager.js');
+          const stateManager = new StateManager(
             context.workspace_root,
             context.user_id,
             context.project_id
           );
           const pipelineState = await stateManager.load();
           const template = await configManager.readTemplate(pipelineState.template_name);
-          const result = await pipelineRead(context, params.slot_name, template);
+          const result = await pipelineRead(context, (params as any).slot_name, template);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-            }]
-          };
+          return typeof result === 'string' 
+            ? textResult(result, { success: true })
+            : jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 pipeline_write_slot 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'pipeline_write_slot',
+      label: 'pipeline_write_slot',
       description: '写入 Slot 内容。当前 Agent 只能写入授权给自己的 slot。',
       parameters: Type.Object({
         slot_name: Type.String({ description: '要写入的 Slot 名称' }),
@@ -107,97 +130,76 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
+          const context = getContextFromToolContext(ctx);
           const configManager = new WorkspaceConfigManager(context.workspace_root);
-          const stateManagerModule = await import('./runtime/state-manager.js');
-          const stateManager = new stateManagerModule.StateManager(
+          const { StateManager } = await import('./runtime/state-manager.js');
+          const stateManager = new StateManager(
             context.workspace_root,
             context.user_id,
             context.project_id
           );
           const pipelineState = await stateManager.load();
           const template = await configManager.readTemplate(pipelineState.template_name);
-          await pipelineWriteSlot(context, params.slot_name, params.content, template);
+          await pipelineWriteSlot(context, (params as any).slot_name, (params as any).content, template);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: '✅ 写入成功'
-            }]
-          };
+          return textResult('✅ 写入成功', { success: true });
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 pipeline_add_remark 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'pipeline_add_remark',
+      label: 'pipeline_add_remark',
       description: '为管道添加批注或建议',
       parameters: Type.Object({
         content: Type.String({ description: '批注内容' }),
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
-          await pipelineAddRemark(context, params.content);
+          const context = getContextFromToolContext(ctx);
+          await pipelineAddRemark(context, (params as any).content);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: '✅ 批注已添加'
-            }]
-          };
+          return textResult('✅ 批注已添加', { success: true });
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 style_get_profile 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'style_get_profile',
+      label: 'style_get_profile',
       description: '获取当前 Agent 对当前用户的长期记忆偏好',
       parameters: Type.Object({}),
       async execute() {
         try {
-          const context = getContext();
+          const context = getContextFromToolContext(ctx);
           const result = await styleGetProfile(context);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
+          return jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 style_record_feedback 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'style_record_feedback',
+      label: 'style_record_feedback',
       description: '更新当前 Agent 对当前用户的长期记忆偏好',
       parameters: Type.Object({
         preference_updates: Type.Record(Type.String(), Type.Unknown(), {
@@ -206,30 +208,23 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
-          await styleRecordFeedback(context, params.preference_updates);
+          const context = getContextFromToolContext(ctx);
+          await styleRecordFeedback(context, (params as any).preference_updates);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: '✅ 记忆已更新'
-            }]
-          };
+          return textResult('✅ 记忆已更新', { success: true });
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 route_message 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'route_message',
+      label: 'route_message',
       description: '将消息路由给指定的专业 Agent，实现直接对话（仅限 orchestrator 使用）',
       parameters: Type.Object({
         target_agent: Type.String({ description: '目标 Agent 名称' }),
@@ -237,30 +232,25 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
-          const result = await routeMessage(context, params.target_agent, params.message);
+          const context = getContextFromToolContext(ctx);
+          const result = await routeMessage(context, (params as any).target_agent, (params as any).message);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: typeof result === 'string' ? result : JSON.stringify(result, null, 2)
-            }]
-          };
+          return typeof result === 'string' 
+            ? textResult(result, { success: true })
+            : jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 workspace_config 工具
-    api.registerTool({
+    api.registerTool((ctx: OpenClawPluginToolContext) => ({
       name: 'workspace_config',
+      label: 'workspace_config',
       description: '读取或修改管道模板和用户记忆文件',
       parameters: Type.Object({
         action: Type.Union([
@@ -276,33 +266,27 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
-          const context = getContext();
-          const payload = params.action === 'read_memory' || params.action === 'write_memory'
-            ? { ...params, user_id: context.user_id }
-            : params;
-          const result = await workspaceConfig(getWorkspaceRoot(), params.action, payload);
+          const context = getContextFromToolContext(ctx);
+          const p = params as any;
+          const payload = p.action === 'read_memory' || p.action === 'write_memory'
+            ? { ...p, user_id: context.user_id }
+            : p;
+          const result = await workspaceConfig(getWorkspaceRoot(), p.action, payload);
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
+          return jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 agent_guide_generator 工具
-    api.registerTool({
+    api.registerTool(() => ({
       name: 'agent_guide_generator',
+      label: 'agent_guide_generator',
       description: '为指定 Agent 生成或更新管道协作指南',
       parameters: Type.Object({
         agent_name: Type.String({ description: 'Agent 名称' }),
@@ -314,34 +298,28 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
+          const p = params as any;
           await agentGuideGenerator(
             getWorkspaceRoot(),
-            params.agent_name,
-            params.instructions,
-            params.append ?? false
+            p.agent_name,
+            p.instructions,
+            p.append ?? false
           );
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: '✅ 指南已更新'
-            }]
-          };
+          return textResult('✅ 指南已更新', { success: true });
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 pipeline_start 工具
-    api.registerTool({
+    api.registerTool(() => ({
       name: 'pipeline_start',
+      label: 'pipeline_start',
       description: '启动一个多 Agent 管道项目，执行到第一个 checkpoint 阶段后暂停',
       parameters: Type.Object({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
@@ -350,34 +328,28 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
+          const p = params as any;
           const result = await pipelineStart(
-            params.template_name,
-            params.user_id,
-            params.project_id,
+            p.template_name,
+            p.user_id,
+            p.project_id,
             getWorkspaceRoot()
           );
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
+          return jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
 
     // 注册 pipeline_continue 工具
-    api.registerTool({
+    api.registerTool(() => ({
       name: 'pipeline_continue',
+      label: 'pipeline_continue',
       description: '继续管道执行：agree 推进到下一阶段，或输入修改意见',
       parameters: Type.Object({
         user_id: Type.String({ description: '用户 ID' }),
@@ -386,30 +358,23 @@ export default definePluginEntry({
       }),
       async execute(_id, params) {
         try {
+          const p = params as any;
           const result = await pipelineContinue(
-            params.user_id,
-            params.project_id,
-            params.feedback,
+            p.user_id,
+            p.project_id,
+            p.feedback,
             getWorkspaceRoot()
           );
           
-          return {
-            content: [{
-              type: 'text' as const,
-              text: JSON.stringify(result, null, 2)
-            }]
-          };
+          return jsonResult(result);
         } catch (err) {
-          return {
-            content: [{
-              type: 'text' as const,
-              text: `错误: ${err instanceof Error ? err.message : String(err)}`
-            }],
-            isError: true
-          };
+          return textResult(
+            `错误: ${err instanceof Error ? err.message : String(err)}`,
+            { success: false, error: String(err) }
+          );
         }
       },
-    });
+    }));
   },
 });
 
