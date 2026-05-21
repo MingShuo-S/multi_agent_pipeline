@@ -62,7 +62,7 @@
     }
   },
   "activation": {
-    "onStartup": false
+    "onStartup": true
   },
   "skills": [
     "./SKILL.md"
