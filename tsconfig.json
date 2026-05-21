@@ -4,9 +4,14 @@
     "module": "NodeNext",
     "lib": ["ES2020"],
     "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "openclaw/plugin-sdk/plugin-entry": ["node_modules/openclaw/dist/plugin-sdk/plugin-entry.d.ts"]
+    },
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "noImplicitAny": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

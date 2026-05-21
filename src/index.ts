@@ -93,7 +93,7 @@ export default definePluginEntry({
       parameters: Type.Object({
         slot_name: Type.String({ description: '要读取的 Slot 名称' }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           const configManager = new WorkspaceConfigManager(context.workspace_root);
@@ -128,7 +128,7 @@ export default definePluginEntry({
         slot_name: Type.String({ description: '要写入的 Slot 名称' }),
         content: Type.String({ description: '要写入的内容' }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           const configManager = new WorkspaceConfigManager(context.workspace_root);
@@ -160,7 +160,7 @@ export default definePluginEntry({
       parameters: Type.Object({
         content: Type.String({ description: '批注内容' }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           await pipelineAddRemark(context, (params as any).content);
@@ -181,7 +181,7 @@ export default definePluginEntry({
       label: 'style_get_profile',
       description: '获取当前 Agent 对当前用户的长期记忆偏好',
       parameters: Type.Object({}),
-      async execute() {
+      async execute(_id: string, _params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           const result = await styleGetProfile(context);
@@ -206,7 +206,7 @@ export default definePluginEntry({
           description: '偏好更新内容，可包含 style, avoid, feedback_log 等'
         }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           await styleRecordFeedback(context, (params as any).preference_updates);
@@ -230,7 +230,7 @@ export default definePluginEntry({
         target_agent: Type.String({ description: '目标 Agent 名称' }),
         message: Type.String({ description: '要发送的消息' }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           const result = await routeMessage(context, (params as any).target_agent, (params as any).message);
@@ -264,7 +264,7 @@ export default definePluginEntry({
         agent_name: Type.Optional(Type.String({ description: 'Agent 名称' })),
         content: Type.Optional(Type.String({ description: '内容' })),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const context = getContextFromToolContext(ctx);
           const p = params as any;
@@ -296,7 +296,7 @@ export default definePluginEntry({
           default: false
         })),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const p = params as any;
           await agentGuideGenerator(
@@ -326,7 +326,7 @@ export default definePluginEntry({
         user_id: Type.String({ description: '用户 ID（如 alice）' }),
         project_id: Type.String({ description: '项目 ID（如 camping-post）' }),
       }),
-      async execute(_id, params) {
+      async execute(_id: string, params: Record<string, unknown>) {
         try {
           const p = params as any;
           const result = await pipelineStart(
