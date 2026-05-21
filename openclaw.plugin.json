@@ -14,7 +14,57 @@
       }
     }
   },
+  "contracts": {
+    "tools": [
+      "pipeline_read",
+      "pipeline_write_slot",
+      "pipeline_add_remark",
+      "style_get_profile",
+      "style_record_feedback",
+      "route_message",
+      "workspace_config",
+      "agent_guide_generator",
+      "pipeline_start",
+      "pipeline_continue"
+    ]
+  },
+  "toolMetadata": {
+    "pipeline_read": {
+      "description": "读取管道中当前阶段允许的 Slot 内容"
+    },
+    "pipeline_write_slot": {
+      "description": "写入 Slot 的内容（仅限当前阶段允许的 Slot）"
+    },
+    "pipeline_add_remark": {
+      "description": "为管道添加批注或建议"
+    },
+    "style_get_profile": {
+      "description": "获取当前 Agent 对当前用户的长期记忆偏好"
+    },
+    "style_record_feedback": {
+      "description": "更新当前 Agent 对当前用户的长期记忆偏好"
+    },
+    "route_message": {
+      "description": "将消息路由给指定的专业 Agent，实现直接对话",
+      "orchestratorOnly": true
+    },
+    "workspace_config": {
+      "description": "读取或修改管道模板和用户记忆文件"
+    },
+    "agent_guide_generator": {
+      "description": "为指定 Agent 生成或更新管道协作指南"
+    },
+    "pipeline_start": {
+      "description": "启动一个多 Agent 管道项目，执行到第一个 checkpoint 阶段后暂停"
+    },
+    "pipeline_continue": {
+      "description": "继续管道执行：agree 推进到下一阶段，或输入修改意见"
+    }
+  },
   "activation": {
-    "onStartup": true
-  }
+    "onStartup": false
+  },
+  "skills": [
+    "./SKILL.md"
+  ]
 }
