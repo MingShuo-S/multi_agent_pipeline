@@ -1,0 +1,1 @@
+(已归档) SKILL.md 内容已转移到 docs/archive/ 供审阅。原文件已归档。

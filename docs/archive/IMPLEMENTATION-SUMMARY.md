@@ -284,7 +284,7 @@ node dist/cli.js start xiaohongshu-creation --user=alice --project=my-post
 1. **Agent 自主，管道协调**
    - 每个 Agent 完全自主，管道只负责流程控制
 
-2. **数据驱动，权限为先**
+2. **数据驱动，权限为先**n
    - Slot 通过权限隔离，不靠信任
 
 3. **人永远在回路**
