@@ -15,7 +15,6 @@ import {
   type OpenClawPluginApi,
   type OpenClawPluginToolContext
 } from 'openclaw/plugin-sdk/plugin-entry';
-import { homedir } from 'os';
 import { join } from 'path';
 
 // 导入工具实现
@@ -29,10 +28,12 @@ import { pipelineContinue } from './tools/pipeline-continue.js';
 
 /**
  * 获取工作区根目录
+ * 现在完全由参数传入，不再从 process.env 读取
  */
-function getWorkspaceRoot(): string {
-  const home = process.env.OPENCLAW_HOME || join(homedir(), '.openclaw');
-  return join(home, 'workspaces', 'multi-agent-pipeline');
+function getWorkspaceRoot(_ctx?: any): string {
+  // workspaceRoot 应当由调用方通过工具上下文提供
+  // 返回空字符串，由调用方通过 workspace_root 参数决定
+  return '';
 }
 
 /**
@@ -41,8 +42,8 @@ function getWorkspaceRoot(): string {
 function getContextFromToolContext(ctx: OpenClawPluginToolContext) {
   return {
     agent_name: ctx.agentId || 'unknown',
-    user_id: process.env.OPENCLAW_USER_ID || 'default-user',
-    project_id: process.env.OPENCLAW_PROJECT_ID || 'default-project',
+    user_id: 'default-user',
+    project_id: 'default-project',
     workspace_root: getWorkspaceRoot(),
   };
 }
@@ -268,10 +269,11 @@ export default definePluginEntry({
         try {
           const context = getContextFromToolContext(ctx);
           const p = params as any;
+          const wsRoot = p.workspace_root || context.workspace_root;
           const payload = p.action === 'read_memory' || p.action === 'write_memory'
             ? { ...p, user_id: context.user_id }
             : p;
-          const result = await workspaceConfig(getWorkspaceRoot(), p.action, payload);
+          const result = await workspaceConfig(wsRoot, p.action, payload);
           
           return jsonResult(result);
         } catch (err) {
@@ -300,7 +302,7 @@ export default definePluginEntry({
         try {
           const p = params as any;
           await agentGuideGenerator(
-            getWorkspaceRoot(),
+            p.workspace_root || join('.openclaw', 'workspaces', 'multi-agent-pipeline'),
             p.agent_name,
             p.instructions,
             p.append ?? false
@@ -333,7 +335,7 @@ export default definePluginEntry({
             p.template_name,
             p.user_id,
             p.project_id,
-            getWorkspaceRoot()
+            p.workspace_root || join('.openclaw', 'workspaces', 'multi-agent-pipeline')
           );
           
           return jsonResult(result);
@@ -363,7 +365,7 @@ export default definePluginEntry({
             p.user_id,
             p.project_id,
             p.feedback,
-            getWorkspaceRoot()
+            p.workspace_root || join('.openclaw', 'workspaces', 'multi-agent-pipeline')
           );
           
           return jsonResult(result);

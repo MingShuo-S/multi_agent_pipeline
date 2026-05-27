@@ -31,5 +31,18 @@ yarn-debug.log*
 .cache/
 .temp/
 
+# Test files
+test-*.mjs
+test-*.js
+test-*.sh
+*.test.js
+*.spec.js
+
+# Deploy scripts (temporary)
+deploy-*.sh
+deploy-*.ps1
+debug-*.ps1
+debug-*.sh
+
 # OS
 Thumbs.db

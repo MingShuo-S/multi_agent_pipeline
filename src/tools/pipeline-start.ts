@@ -1,6 +1,5 @@
 // src/tools/pipeline-start.ts - 启动管道并执行到第一个 checkpoint
 
-import { homedir } from 'os';
 import { join } from 'path';
 import { ToolContext, Template, PipelineState } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
@@ -8,9 +7,8 @@ import { WorkspaceConfigManager } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 
-// 正确的全局工作区路径
-const OPENCLAW_HOME = process.env.OPENCLAW_HOME || join(homedir(), '.openclaw');
-const WORKSPACE_ROOT = join(OPENCLAW_HOME, 'workspaces', 'multi-agent-pipeline');
+// workspace_root 由调用方传入，不再从 process.env 读取
+const DEFAULT_WORKSPACE_ROOT = join('.openclaw', 'workspaces', 'multi-agent-pipeline');
 
 export interface CheckpointResult {
   status: 'checkpoint_reached' | 'completed' | 'error';
@@ -171,5 +169,5 @@ export async function pipelineStart(
   projectId: string,
   workspaceRoot: string
 ): Promise<CheckpointResult> {
-  return executeUntilCheckpoint(workspaceRoot || WORKSPACE_ROOT, userId, projectId, templateName, false);
+  return executeUntilCheckpoint(workspaceRoot || DEFAULT_WORKSPACE_ROOT, userId, projectId, templateName, false);
 }
