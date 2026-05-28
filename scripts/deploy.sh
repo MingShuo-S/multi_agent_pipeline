@@ -7,6 +7,7 @@ set -euo pipefail
 # ============================================================
 
 # ---------- 配置（按需修改） ----------
+source ~/.bashrc 2>/dev/null || true
 BAYESDL_API_KEY="${BAYESDL_API_KEY:-}"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 OPENCLAW_HOME="${HOME}/.openclaw"
@@ -153,25 +154,34 @@ openclaw plugins install "${PLUGIN_DIR}" --link 2>/dev/null || {
 }
 echo "✓ 插件已注册"
 
-# ---------- 步骤 6: 配置 Agent 工具可见性 ----------
+# ---------- 步骤 6: 配置 orchestrator Agent ----------
 echo ""
-echo "=== 步骤 6: 配置 Agent 工具可见性 ==="
+echo "=== 步骤 6: 配置 orchestrator Agent ==="
 
-# 使用插件工具需在 agent tools.allow 中添加 "group:plugins"
-# pipeline tools 需要加到 orchestrator 的可调用列表
-openclaw config set agents.orchestrator.tools.allow '[
-  "group:fs",
-  "group:sessions",
-  "group:agents",
-  "group:plugins",
-  "pipeline_start",
-  "pipeline_continue",
-  "route_message",
-  "pipeline_read",
-  "pipeline_add_remark",
-  "workspace_config",
-  "agent_guide_generator"
-]' 2>/dev/null && echo "✓ orchestrator 工具列表已配置" || echo "⚠ 请手动配置 orchestrator 的 tools.allow"
+python3 << 'PYEOF' 2>/dev/null && echo "✓ orchestrator agent 已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
+import json, os
+cfg_path = os.path.expanduser('~/.openclaw/openclaw.json')
+try:
+    with open(cfg_path) as f:
+        cfg = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    cfg = {}
+agents = cfg.setdefault('agents', {})
+agents['orchestrator'] = {
+    "enabled": True,
+    "model": "bayesdl/qwen3.6-flash",
+    "role": "orchestrator",
+    "tools": {
+        "allow": ["group:fs","group:sessions","group:agents","group:plugins","pipeline_start","pipeline_continue","route_message","pipeline_read","pipeline_add_remark","workspace_config","agent_guide_generator"]
+    },
+    "subagents": {
+        "allowAgents": ["topic-researcher","web-researcher","content-writer","quality-reviewer","publisher"]
+    }
+}
+with open(cfg_path, 'w') as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+print('✓ orchestrator agent 已配置')
+PYEOF
 
 # ---------- 完成 ----------
 echo ""
