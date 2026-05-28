@@ -30,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^20.19.41",
     "@types/yargs": "^17.0.35",
+    "openclaw": "^2026.5.22",
     "typescript": "^6.0.3"
   },
   "engines": {
