@@ -132,15 +132,46 @@ cat > "${AGENT_WORKSPACE_ROOT}/publisher/SOUL.md" << 'EOF'
 EOF
 echo "  ✓ publisher/SOUL.md"
 
-# ---------- 步骤 4: 注册插件 ----------
+# ---------- 步骤 4: 生成插件清单 ----------
 echo ""
-echo "=== 步骤 4: 注册插件到 OpenClaw ==="
+echo "=== 步骤 4: 生成插件清单（确保 tool-plugin 元数据一致） ==="
+
+cd "${PLUGIN_DIR}"
+npx openclaw plugins build --entry ./dist/index.js 2>/dev/null || {
+  openclaw plugins build --entry ./dist/index.js 2>/dev/null || echo "⚠ openclaw plugins build 失败，使用已有 manifest"
+}
+echo "✓ 插件清单已更新"
+cd - > /dev/null
+
+# ---------- 步骤 5: 注册插件 ----------
+echo ""
+echo "=== 步骤 5: 注册插件到 OpenClaw ==="
 
 openclaw plugins install "${PLUGIN_DIR}" --link 2>/dev/null || {
   openclaw plugins uninstall multi-agent-pipeline 2>/dev/null || true
   openclaw plugins install "${PLUGIN_DIR}" --link
 }
 echo "✓ 插件已注册"
+
+# ---------- 步骤 6: 配置 Agent 工具可见性 ----------
+echo ""
+echo "=== 步骤 6: 配置 Agent 工具可见性 ==="
+
+# 使用插件工具需在 agent tools.allow 中添加 "group:plugins"
+# pipeline tools 需要加到 orchestrator 的可调用列表
+openclaw config set agents.orchestrator.tools.allow '[
+  "group:fs",
+  "group:sessions",
+  "group:agents",
+  "group:plugins",
+  "pipeline_start",
+  "pipeline_continue",
+  "route_message",
+  "pipeline_read",
+  "pipeline_add_remark",
+  "workspace_config",
+  "agent_guide_generator"
+]' 2>/dev/null && echo "✓ orchestrator 工具列表已配置" || echo "⚠ 请手动配置 orchestrator 的 tools.allow"
 
 # ---------- 完成 ----------
 echo ""
@@ -149,9 +180,8 @@ echo "  部署完成！"
 echo "============================================"
 echo ""
 echo "下一步："
-echo "  1. 确保 openclaw.json 中的 agents/models/tools 配置已合并"
-echo "  2. 手动执行: openclaw gateway restart"
-echo "  3. 回到 OpenClaw dashboard"
+echo "  1. 手动执行: openclaw gateway restart"
+echo "  2. 回到 OpenClaw dashboard"
 echo ""
 echo "验证: openclaw plugins inspect multi-agent-pipeline --runtime"
 echo "      应显示 10 个工具名称"

@@ -1,14 +1,14 @@
 // src/tools/pipeline-start.ts - 启动管道并执行到第一个 checkpoint
 
 import { join } from 'path';
+import { homedir } from 'os';
 import { ToolContext, Template, PipelineState } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 
-// workspace_root 由调用方传入，不再从 process.env 读取
-const DEFAULT_WORKSPACE_ROOT = join('.openclaw', 'workspaces', 'multi-agent-pipeline');
+const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
 
 export interface CheckpointResult {
   status: 'checkpoint_reached' | 'completed' | 'error';

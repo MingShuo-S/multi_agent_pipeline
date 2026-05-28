@@ -1,14 +1,14 @@
 // src/tools/pipeline-continue.ts - 处理用户反馈并继续推进管道
 
 import { join } from 'path';
+import { homedir } from 'os';
 import { ToolContext, PipelineState, Template } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { routeMessage } from './route-message.js';
 import { executeUntilCheckpoint } from './pipeline-start.js';
 
-// workspace_root 由调用方传入，不再从 process.env 读取
-const DEFAULT_WORKSPACE_ROOT = join('.openclaw', 'workspaces', 'multi-agent-pipeline');
+const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
 
 export interface ContinueResult {
   status: 'revised' | 'checkpoint_reached' | 'completed' | 'error';
