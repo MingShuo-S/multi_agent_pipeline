@@ -72,6 +72,7 @@ export async function callSubagent(
   timeoutMs = 180000
 ): Promise<string> {
   if (!api?.runtime?.subagent) {
+    console.warn(`[callSubagent] api.runtime.subagent 不可用，回退到模拟输出。api=${typeof api}, runtime=${typeof api?.runtime}, subagent=${typeof api?.runtime?.subagent}`);
     return '';
   }
   const { runId } = await api.runtime.subagent.run({ sessionKey, message });

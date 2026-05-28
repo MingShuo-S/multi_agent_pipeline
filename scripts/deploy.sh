@@ -34,13 +34,13 @@ if [ "$(whoami)" = "root" ] && echo "$PLUGIN_DIR" | grep -q "^/home/"; then
   chown -R root:root "$PLUGIN_DIR" 2>/dev/null || true
 fi
 
-# ---------- 步骤 0: 检查环境 ----------
-echo "=== 步骤 0: 检查环境 ==="
+# ---------- 步骤 0: 编译插件 ----------
+echo "=== 步骤 0: 编译插件 ==="
 
-if [ ! -f "${PLUGIN_DIR}/dist/index.js" ]; then
-  echo "✗ 未找到 dist/index.js，请先 npm run build"
-  exit 1
-fi
+cd "${PLUGIN_DIR}"
+npm run build 2>&1
+echo "✓ 编译完成"
+cd - > /dev/null
 
 # ---------- 步骤 1: 初始化插件工作区 ----------
 echo ""
@@ -50,17 +50,22 @@ mkdir -p "${PLUGIN_WORKSPACE}/templates"
 mkdir -p "${PLUGIN_WORKSPACE}/projects"
 mkdir -p "${PLUGIN_WORKSPACE}/agent-guides"
 
-# 写入默认模板（xiaohongshu-creation）
-cat > "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json" << 'TEMPLATE'
+# 从源码拷贝模板到工作区（保持同步）
+if [ -f "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" ]; then
+  cp "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json"
+  echo "✓ 模板已从源码复制"
+else
+  # 兜底：写入默认模板
+  cat > "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json" << 'TEMPLATE'
 {
   "name": "xiaohongshu-creation",
-  "description": "生成一篇小红书笔记",
+  "description": "生成一篇小红书笔记（人机协作交互版）",
   "stages": [
-    { "id": "topic-research", "agent": "topic-researcher", "checkpoint": false, "allow_read": ["*"], "allow_write": ["topic_brief"] },
-    { "id": "web-research", "agent": "web-researcher", "checkpoint": false, "allow_read": ["topic_brief"], "allow_write": ["research_notes"] },
+    { "id": "topic-research", "agent": "topic-researcher", "checkpoint": true, "allow_read": [], "allow_write": ["topic_brief"] },
+    { "id": "web-research", "agent": "web-researcher", "checkpoint": true, "allow_read": ["topic_brief"], "allow_write": ["research_notes"] },
     { "id": "draft-writing", "agent": "content-writer", "checkpoint": true, "allow_read": ["topic_brief", "research_notes"], "allow_write": ["draft_content"] },
-    { "id": "review", "agent": "quality-reviewer", "checkpoint": false, "allow_read": ["draft_content", "research_notes"], "allow_write": ["review_feedback"] },
-    { "id": "publish", "agent": "publisher", "checkpoint": false, "allow_read": ["draft_content", "review_feedback"], "allow_write": ["final_output"] }
+    { "id": "review", "agent": "quality-reviewer", "checkpoint": true, "allow_read": ["draft_content", "topic_brief"], "allow_write": ["draft_content", "review_feedback"] },
+    { "id": "publish", "agent": "publisher", "checkpoint": true, "allow_read": ["draft_content", "review_feedback"], "allow_write": ["final_output"] }
   ],
   "slots": {
     "topic_brief": { "type": "text", "default": "" },
@@ -71,6 +76,7 @@ cat > "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json" << 'TEMPLATE'
   }
 }
 TEMPLATE
+fi
 echo "✓ 插件工作区已初始化: ${PLUGIN_WORKSPACE}"
 
 # ---------- 步骤 2: 创建 Agent 工作区 ----------
