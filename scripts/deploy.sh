@@ -7,8 +7,6 @@ set -euo pipefail
 # ============================================================
 
 # ---------- 配置（按需修改） ----------
-source ~/.bashrc 2>/dev/null || true
-BAYESDL_API_KEY="${BAYESDL_API_KEY:-}"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 自动探测 gateway 配置目录
@@ -42,14 +40,6 @@ echo "=== 步骤 0: 检查环境 ==="
 if [ ! -f "${PLUGIN_DIR}/dist/index.js" ]; then
   echo "✗ 未找到 dist/index.js，请先 npm run build"
   exit 1
-fi
-
-if [ -z "$BAYESDL_API_KEY" ]; then
-  echo "⚠ BAYESDL_API_KEY 未设置，跳过 API Key 配置"
-  echo "  部署完成后执行: openclaw config set models.providers.bayesdl.apiKey \"sk-你的key\""
-else
-  openclaw config set models.providers.bayesdl.apiKey "${BAYESDL_API_KEY}"
-  echo "✓ API Key 已配置"
 fi
 
 # ---------- 步骤 1: 初始化插件工作区 ----------
@@ -190,6 +180,22 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     cfg = {}
 ws_root = os.path.join(h, 'workspace')
+# ---------- 确保 bayesdl provider 有 key（从 maas 继承） ----------
+providers = cfg.setdefault('models', {}).setdefault('providers', {})
+maas_key = providers.get('maas', {}).get('apiKey', '')
+bayesdl_key = providers.get('bayesdl', {}).get('apiKey', '')
+if not bayesdl_key or bayesdl_key.startswith('sk-你的') or bayesdl_key == '${BAYESDL_API_KEY}':
+    providers['bayesdl'] = {
+        "baseUrl": "https://token.bayesdl.com/api/maas/v1",
+        "api": "openai-completions",
+        "apiKey": maas_key,
+        "models": providers['bayesdl'].get('models', []) if 'bayesdl' in providers else [
+            {"id":"deepseek-v4-flash","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":True},
+            {"id":"qwen3-max","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
+            {"id":"qwen3.5-plus","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
+            {"id":"kimi-k2.5","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
+        ]
+    }
 # ---------- 全局 tools ----------
 cfg['tools'] = cfg.get('tools', {})
 cfg['tools'].update({"profile": "full", "sessions": {"visibility": "all"}})
@@ -204,26 +210,50 @@ agents_list = [
     {"id": "main"},
     {
         "id": "orchestrator",
-        "model": "bayesdl/qwen3.6-flash",
+        "model": "bayesdl/qwen3-max",
         "workspace": agent_ws("orchestrator"),
         "tools": {
             "allow": ["pipeline_start","pipeline_continue","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:fs","group:sessions","group:agents"]
         },
         "subagents": {"allowAgents": list(SUB_AGENTS)}
     },
-]
-for name in SUB_AGENTS:
-    agents_list.append({
-        "id": name,
-        "model": "bayesdl/qwen3.6-flash",
-        "workspace": agent_ws(name),
+    {
+        "id": "topic-researcher",
+        "model": "bayesdl/qwen3.5-plus",
+        "workspace": agent_ws("topic-researcher"),
         "tools": sub_tools()
-    })
+    },
+    {
+        "id": "web-researcher",
+        "model": "bayesdl/deepseek-v4-flash",
+        "workspace": agent_ws("web-researcher"),
+        "tools": sub_tools()
+    },
+    {
+        "id": "content-writer",
+        "model": "bayesdl/kimi-k2.5",
+        "workspace": agent_ws("content-writer"),
+        "tools": sub_tools()
+    },
+    {
+        "id": "quality-reviewer",
+        "model": "bayesdl/qwen3.5-plus",
+        "workspace": agent_ws("quality-reviewer"),
+        "tools": sub_tools()
+    },
+    {
+        "id": "publisher",
+        "model": "bayesdl/deepseek-v4-flash",
+        "workspace": agent_ws("publisher"),
+        "tools": sub_tools()
+    },
+]
 cfg['agents'] = {
     "defaults": {
         "workspace": ws_root,
-        "model": {"primary": "bayesdl/qwen3.6-flash"},
+        "model": {"primary": "maas/qwen3.6-flash"},
         "models": {
+            "maas/qwen3.6-flash": {"alias": "qwen3.6-flash"},
             "bayesdl/deepseek-v4-flash": {"alias": "DeepSeek V4 Flash"},
             "bayesdl/qwen3-max": {"alias": "Qwen3 Max"},
             "bayesdl/qwen3.5-plus": {"alias": "Qwen3.5 Plus"},
