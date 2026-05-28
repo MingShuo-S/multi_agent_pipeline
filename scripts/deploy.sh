@@ -29,12 +29,11 @@ PLUGIN_WORKSPACE="${OPENCLAW_HOME}/workspaces/multi-agent-pipeline"
 # ---------- 检查权限 ----------
 if [ -d "$OPENCLAW_HOME" ] && [ ! -w "$OPENCLAW_HOME" ]; then
   echo "⚠ ${OPENCLAW_HOME} 不可写，尝试修复..."
-  if [ "$(whoami)" = "root" ] && echo "$OPENCLAW_HOME" | grep -q "^/home/"; then
-    # root 用户操作 /home/ 下的目录 → 改为 node 用户所有
-    chown -R node:node "$OPENCLAW_HOME" 2>/dev/null && echo "  已 chown node:node" || echo "  chown 失败，请手动执行: chown -R node:node $OPENCLAW_HOME"
-  else
-    chmod -R u+w "$OPENCLAW_HOME" 2>/dev/null || echo "  权限修复失败，请手动执行: sudo chown -R $(whoami) $OPENCLAW_HOME"
-  fi
+  chmod -R u+w "$OPENCLAW_HOME" 2>/dev/null || echo "  权限修复失败，请手动执行: chown -R $(whoami) $OPENCLAW_HOME"
+fi
+# 确保插件源码目录与 gateway 用户一致（否则 OpenClaw 安全策略会 block）
+if [ "$(whoami)" = "root" ] && echo "$PLUGIN_DIR" | grep -q "^/home/"; then
+  chown -R root:root "$PLUGIN_DIR" 2>/dev/null || true
 fi
 
 # ---------- 步骤 0: 检查环境 ----------
