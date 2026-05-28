@@ -158,7 +158,7 @@ echo "✓ 插件已注册"
 echo ""
 echo "=== 步骤 6: 配置 orchestrator Agent ==="
 
-python3 << 'PYEOF' 2>/dev/null && echo "✓ orchestrator agent 已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
+python3 << 'PYEOF' 2>/dev/null && echo "✓ orchestrator agent + sessions 可见性已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
 import json, os
 cfg_path = os.path.expanduser('~/.openclaw/openclaw.json')
 try:
@@ -166,7 +166,14 @@ try:
         cfg = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
     cfg = {}
+# 全局 tools 配置：允许跨 agent 发消息
+cfg['tools'] = cfg.get('tools', {})
+cfg['tools']['sessions'] = cfg['tools'].get('sessions', {})
+cfg['tools']['sessions']['visibility'] = 'all'
+# orchestrator agent 配置
 agents = cfg.setdefault('agents', {})
+SUB_AGENTS = ["topic-researcher","web-researcher","content-writer","quality-reviewer","publisher"]
+SUB_TOOLS = {"allow": ["group:fs","group:web","pipeline_read","pipeline_write_slot","pipeline_add_remark","style_get_profile","style_record_feedback"]}
 agents['orchestrator'] = {
     "enabled": True,
     "model": "bayesdl/qwen3.6-flash",
@@ -175,12 +182,19 @@ agents['orchestrator'] = {
         "allow": ["group:fs","group:sessions","group:agents","group:plugins","pipeline_start","pipeline_continue","route_message","pipeline_read","pipeline_add_remark","workspace_config","agent_guide_generator"]
     },
     "subagents": {
-        "allowAgents": ["topic-researcher","web-researcher","content-writer","quality-reviewer","publisher"]
+        "allowAgents": SUB_AGENTS
     }
 }
+for name in SUB_AGENTS:
+    if name not in agents:
+        agents[name] = {
+            "enabled": True,
+            "model": "bayesdl/qwen3.6-flash",
+            "tools": SUB_TOOLS
+        }
 with open(cfg_path, 'w') as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
-print('✓ orchestrator agent 已配置')
+print('✓ orchestrator agent + sessions 可见性已配置')
 PYEOF
 
 # ---------- 完成 ----------
