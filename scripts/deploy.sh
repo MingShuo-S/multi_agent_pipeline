@@ -11,9 +11,9 @@ source ~/.bashrc 2>/dev/null || true
 BAYESDL_API_KEY="${BAYESDL_API_KEY:-}"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-# 自动探测 gateway 配置目录（可能以 node/root 等不同用户运行）
+# 自动探测 gateway 配置目录
 OPENCLAW_HOME=""
-for candidate in "$HOME/.openclaw" "/home/node/.openclaw" "/root/.openclaw"; do
+for candidate in "$HOME/.openclaw" "/root/.openclaw" "/home/node/.openclaw"; do
   if [ -f "$candidate/openclaw.json" ]; then
     OPENCLAW_HOME="$candidate"
     break
@@ -42,12 +42,6 @@ echo "=== 步骤 0: 检查环境 ==="
 if [ ! -f "${PLUGIN_DIR}/dist/index.js" ]; then
   echo "✗ 未找到 dist/index.js，请先 npm run build"
   exit 1
-fi
-
-# 用户一致性检查
-if [ "$(whoami)" = "root" ] && echo "$OPENCLAW_HOME" | grep -q "/home/"; then
-  echo "⚠ 当前为 root 用户，但 gateway 配置在 $OPENCLAW_HOME 下"
-  echo "  建议: su - node 后重新运行本脚本"
 fi
 
 if [ -z "$BAYESDL_API_KEY" ]; then
@@ -186,43 +180,61 @@ echo "✓ 插件已注册"
 echo ""
 echo "=== 步骤 6: 配置 orchestrator Agent ==="
 
-python3 << 'PYEOF' 2>/dev/null && echo "✓ orchestrator agent + sessions 可见性已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
+OPENCLAW_HOME="$OPENCLAW_HOME" python3 << 'PYEOF' 2>/dev/null && echo "✓ agents/models/tools 已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
 import json, os
-cfg_path = os.path.expanduser('~/.openclaw/openclaw.json')
+h = os.environ.get('OPENCLAW_HOME') or os.path.expanduser('~/.openclaw')
+cfg_path = os.path.join(h, 'openclaw.json')
 try:
     with open(cfg_path) as f:
         cfg = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
     cfg = {}
-# 全局 tools 配置：允许跨 agent 发消息
+ws_root = os.path.join(h, 'workspace')
+# ---------- 全局 tools ----------
 cfg['tools'] = cfg.get('tools', {})
-cfg['tools']['sessions'] = cfg['tools'].get('sessions', {})
-cfg['tools']['sessions']['visibility'] = 'all'
-# orchestrator agent 配置
-agents = cfg.setdefault('agents', {})
+cfg['tools'].update({"profile": "full", "sessions": {"visibility": "all"}})
+# ---------- 替换 agents.list ----------
 SUB_AGENTS = ["topic-researcher","web-researcher","content-writer","quality-reviewer","publisher"]
-SUB_TOOLS = {"allow": ["group:fs","group:web","pipeline_read","pipeline_write_slot","pipeline_add_remark","style_get_profile","style_record_feedback"]}
-agents['orchestrator'] = {
-    "enabled": True,
-    "model": "bayesdl/qwen3.6-flash",
-    "role": "orchestrator",
-    "tools": {
-        "allow": ["group:fs","group:sessions","group:agents","group:plugins","pipeline_start","pipeline_continue","route_message","pipeline_read","pipeline_add_remark","workspace_config","agent_guide_generator"]
+def agent_ws(name):
+    return os.path.join(ws_root, name)
+def sub_tools(extra=None):
+    base = ["group:fs","group:web","pipeline_read","pipeline_write_slot","pipeline_add_remark","style_get_profile","style_record_feedback"]
+    return {"allow": base + (extra or [])}
+agents_list = [
+    {"id": "main"},
+    {
+        "id": "orchestrator",
+        "model": "bayesdl/qwen3.6-flash",
+        "workspace": agent_ws("orchestrator"),
+        "tools": {
+            "allow": ["pipeline_start","pipeline_continue","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:fs","group:sessions","group:agents"]
+        },
+        "subagents": {"allowAgents": list(SUB_AGENTS)}
     },
-    "subagents": {
-        "allowAgents": SUB_AGENTS
-    }
-}
+]
 for name in SUB_AGENTS:
-    if name not in agents:
-        agents[name] = {
-            "enabled": True,
-            "model": "bayesdl/qwen3.6-flash",
-            "tools": SUB_TOOLS
+    agents_list.append({
+        "id": name,
+        "model": "bayesdl/qwen3.6-flash",
+        "workspace": agent_ws(name),
+        "tools": sub_tools()
+    })
+cfg['agents'] = {
+    "defaults": {
+        "workspace": ws_root,
+        "model": {"primary": "bayesdl/qwen3.6-flash"},
+        "models": {
+            "bayesdl/deepseek-v4-flash": {"alias": "DeepSeek V4 Flash"},
+            "bayesdl/qwen3-max": {"alias": "Qwen3 Max"},
+            "bayesdl/qwen3.5-plus": {"alias": "Qwen3.5 Plus"},
+            "bayesdl/kimi-k2.5": {"alias": "Kimi K2.5"}
         }
+    },
+    "list": agents_list
+}
 with open(cfg_path, 'w') as f:
     json.dump(cfg, f, indent=2, ensure_ascii=False)
-print('✓ orchestrator agent + sessions 可见性已配置')
+print('✓ agents/models/tools 已配置')
 PYEOF
 
 # ---------- 完成 ----------
