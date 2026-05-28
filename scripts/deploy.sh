@@ -11,9 +11,7 @@ source ~/.bashrc 2>/dev/null || true
 BAYESDL_API_KEY="${BAYESDL_API_KEY:-}"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-# 确定 gateway 用户的 home 目录（gateway 可能以非 root 用户运行）
-GATEWAY_USER_HOME="$(su - node -c 'echo $HOME' 2>/dev/null || echo "/home/node")"
-OPENCLAW_HOME="${GATEWAY_USER_HOME}/.openclaw"
+OPENCLAW_HOME="${HOME}/.openclaw"
 AGENT_WORKSPACE_ROOT="${OPENCLAW_HOME}/workspace"
 PLUGIN_WORKSPACE="${OPENCLAW_HOME}/workspaces/multi-agent-pipeline"
 
@@ -161,9 +159,9 @@ echo "✓ 插件已注册"
 echo ""
 echo "=== 步骤 6: 配置 orchestrator Agent ==="
 
-python3 << PYEOF 2>/dev/null && echo "✓ orchestrator agent + sessions 可见性已配置" || echo "⚠ 自动配置失败，请手动编辑 ${OPENCLAW_HOME}/openclaw.json"
+python3 << 'PYEOF' 2>/dev/null && echo "✓ orchestrator agent + sessions 可见性已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
 import json, os
-cfg_path = '${OPENCLAW_HOME}/openclaw.json'
+cfg_path = os.path.expanduser('~/.openclaw/openclaw.json')
 try:
     with open(cfg_path) as f:
         cfg = json.load(f)
