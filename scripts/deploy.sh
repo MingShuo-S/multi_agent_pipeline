@@ -170,7 +170,7 @@ echo "✓ 插件已注册"
 echo ""
 echo "=== 步骤 6: 配置 orchestrator Agent ==="
 
-OPENCLAW_HOME="$OPENCLAW_HOME" python3 << 'PYEOF' 2>/dev/null && echo "✓ agents/models/tools 已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
+OPENCLAW_HOME="$OPENCLAW_HOME" PLUGIN_DIR="$PLUGIN_DIR" python3 << 'PYEOF' 2>/dev/null && echo "✓ agents/models/tools 已配置" || echo "⚠ 自动配置失败，请手动编辑 ~/.openclaw/openclaw.json"
 import json, os
 h = os.environ.get('OPENCLAW_HOME') or os.path.expanduser('~/.openclaw')
 cfg_path = os.path.join(h, 'openclaw.json')
@@ -199,6 +199,10 @@ if not bayesdl_key or bayesdl_key.startswith('sk-你的') or bayesdl_key == '${B
 # ---------- 全局 tools ----------
 cfg['tools'] = cfg.get('tools', {})
 cfg['tools'].update({"profile": "full", "sessions": {"visibility": "all"}})
+# ---------- 确保 plugins.load.paths 只有当前路径 ----------
+cur_plugin = (os.environ.get('PLUGIN_DIR') or '').strip()
+if cur_plugin:
+    cfg.setdefault('plugins', {}).setdefault('load', {})['paths'] = [cur_plugin]
 # ---------- 替换 agents.list ----------
 SUB_AGENTS = ["topic-researcher","web-researcher","content-writer","quality-reviewer","publisher"]
 def agent_ws(name):
