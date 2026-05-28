@@ -26,6 +26,17 @@ fi
 AGENT_WORKSPACE_ROOT="${OPENCLAW_HOME}/workspace"
 PLUGIN_WORKSPACE="${OPENCLAW_HOME}/workspaces/multi-agent-pipeline"
 
+# ---------- 检查权限 ----------
+if [ -d "$OPENCLAW_HOME" ] && [ ! -w "$OPENCLAW_HOME" ]; then
+  echo "⚠ ${OPENCLAW_HOME} 不可写，尝试修复..."
+  if [ "$(whoami)" = "root" ] && echo "$OPENCLAW_HOME" | grep -q "^/home/"; then
+    # root 用户操作 /home/ 下的目录 → 改为 node 用户所有
+    chown -R node:node "$OPENCLAW_HOME" 2>/dev/null && echo "  已 chown node:node" || echo "  chown 失败，请手动执行: chown -R node:node $OPENCLAW_HOME"
+  else
+    chmod -R u+w "$OPENCLAW_HOME" 2>/dev/null || echo "  权限修复失败，请手动执行: sudo chown -R $(whoami) $OPENCLAW_HOME"
+  fi
+fi
+
 # ---------- 步骤 0: 检查环境 ----------
 echo "=== 步骤 0: 检查环境 ==="
 
