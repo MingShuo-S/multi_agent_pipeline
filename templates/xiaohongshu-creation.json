@@ -1,18 +1,18 @@
 {
   "name": "xiaohongshu-creation",
-  "description": "生成一篇小红书笔记",
+  "description": "生成一篇小红书笔记（人机协作交互版，每阶段均为检查点，用户可逐轮反馈）",
   "stages": [
     {
       "id": "topic-research",
       "agent": "topic-researcher",
-      "checkpoint": false,
-      "allow_read": ["*"],
+      "checkpoint": true,
+      "allow_read": [],
       "allow_write": ["topic_brief"]
     },
     {
       "id": "web-research",
       "agent": "web-researcher",
-      "checkpoint": false,
+      "checkpoint": true,
       "allow_read": ["topic_brief"],
       "allow_write": ["research_notes"]
     },
@@ -26,14 +26,14 @@
     {
       "id": "review",
       "agent": "quality-reviewer",
-      "checkpoint": false,
-      "allow_read": ["draft_content", "research_notes"],
-      "allow_write": ["review_feedback"]
+      "checkpoint": true,
+      "allow_read": ["draft_content", "topic_brief"],
+      "allow_write": ["draft_content", "review_feedback"]
     },
     {
       "id": "publish",
       "agent": "publisher",
-      "checkpoint": false,
+      "checkpoint": true,
       "allow_read": ["draft_content", "review_feedback"],
       "allow_write": ["final_output"]
     }

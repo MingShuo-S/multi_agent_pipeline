@@ -5,8 +5,8 @@ import { homedir } from 'os';
 import { ToolContext, PipelineState, Template } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
-import { routeMessage } from './route-message.js';
 import { executeUntilCheckpoint } from './pipeline-start.js';
+import { routeMessage } from './route-message.js';
 
 const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
 
@@ -59,7 +59,8 @@ export async function pipelineContinue(
   userId: string,
   projectId: string,
   feedback: string,
-  workspaceRoot: string
+  workspaceRoot: string,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<ContinueResult> {
   try {
     const finalWorkspaceRoot = workspaceRoot || DEFAULT_WORKSPACE_ROOT;
@@ -106,7 +107,8 @@ export async function pipelineContinue(
         userId,
         projectId,
         state.template_name,
-        true // 跳过第一个阶段（已推进过了）
+        true, // 跳过第一个阶段（已推进过了）
+        api
       );
 
       if (result.status === 'checkpoint_reached') {
@@ -139,14 +141,17 @@ export async function pipelineContinue(
     } else {
       // 反馈不是 agree，路由给当前 Agent 修改
       const slotName = currentStage.allow_write[0];
-      const currentOutput = state.slot_values[slotName];
 
-      // 调用 route_message 让 Agent 修改
+      // 调用 routeMessage 进行多轮对话（保留完整上下文）
       try {
-        // 这里调用 route_message 逻辑
-        // 实际实现需要调用子 Agent 会话
-        // 为了简化，这里模拟 Agent 修改
-        const revisedOutput = `${currentOutput}\n\n[已按用户反馈修改: ${feedback}]`;
+        const context: ToolContext = {
+          agent_name: 'orchestrator',
+          user_id: userId,
+          project_id: projectId,
+          workspace_root: finalWorkspaceRoot,
+          api,
+        };
+        const revisedOutput = await routeMessage(context, currentStage.agent, feedback, api);
         state.slot_values[slotName] = revisedOutput;
         await stateManager.save(state);
 

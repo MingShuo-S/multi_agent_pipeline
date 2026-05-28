@@ -2,7 +2,7 @@
 
 import { join } from 'path';
 import { homedir } from 'os';
-import { ToolContext, Template, PipelineState } from '../types.js';
+import { ToolContext, Template, PipelineState, callSubagent } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
@@ -34,7 +34,8 @@ export async function executeUntilCheckpoint(
   userId: string,
   projectId: string,
   templateName: string,
-  skipFirstStage = false
+  skipFirstStage = false,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<CheckpointResult> {
   try {
     const stateManager = new StateManager(workspaceRoot, userId, projectId);
@@ -62,13 +63,24 @@ export async function executeUntilCheckpoint(
     while (startStage < template.stages.length && state.status === 'running') {
       const stage = template.stages[startStage];
 
-      // TODO: 这里应该调用真实的 Agent 执行
-      // 目前模拟 Agent 执行并更新 slot
-      const demoOutput = `[Agent ${stage.agent} 执行结果] 模拟产出 for ${stage.allow_write[0] || 'output'}`;
+      // 构建 Agent Prompt
+      const stageMemory = new MemoryManager(workspaceRoot, userId, stage.agent);
+      const profile = await stageMemory.getProfile();
+      const prompt = await promptBuilder.buildPipelinePrompt(stage.agent, template, state, profile);
+
+      // 调用真实 Agent（复合 sessionKey 隔离项目会话）
+      let agentOutput = '';
+      try {
+        const sessionKey = `${stage.agent}:${userId}:${projectId}`;
+        const result = await callSubagent(api, sessionKey, prompt);
+        agentOutput = result || `[Agent ${stage.agent} 执行结果] 模拟产出 for ${stage.allow_write[0] || 'output'}`;
+      } catch (err) {
+        agentOutput = `[Agent ${stage.agent} 执行出错] ${String(err)}`;
+      }
       
       if (stage.allow_write.length > 0) {
         const slotName = stage.allow_write[0];
-        state.slot_values[slotName] = demoOutput;
+        state.slot_values[slotName] = agentOutput;
       }
 
       state.current_stage = startStage;
@@ -167,7 +179,8 @@ export async function pipelineStart(
   templateName: string,
   userId: string,
   projectId: string,
-  workspaceRoot: string
+  workspaceRoot: string,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<CheckpointResult> {
-  return executeUntilCheckpoint(workspaceRoot || DEFAULT_WORKSPACE_ROOT, userId, projectId, templateName, false);
+  return executeUntilCheckpoint(workspaceRoot || DEFAULT_WORKSPACE_ROOT, userId, projectId, templateName, false, api);
 }

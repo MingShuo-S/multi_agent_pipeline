@@ -8,6 +8,8 @@ import { WorkspaceConfigManager } from '../tools/workspace-config.js';
 import { MemoryManager } from '../tools/memory.js';
 import { AgentGuideGenerator } from '../tools/agent-guide-generator.js';
 import { SkillRunner } from './skill-runner.js';
+import type { SubagentAPI } from '../types.js';
+import { callSubagent } from '../types.js';
 
 export class PipelineRunner {
   private stateManager: StateManager;
@@ -17,7 +19,8 @@ export class PipelineRunner {
     private workspaceRoot: string,
     private userId: string,
     private projectId: string,
-    private templateName: string
+    private templateName: string,
+    private api?: { runtime: { subagent: SubagentAPI } }
   ) {
     this.stateManager = new StateManager(workspaceRoot, userId, projectId);
     this.rl = readline.createInterface({
@@ -64,11 +67,25 @@ export class PipelineRunner {
 
         console.log(`\n【Agent Prompt】\n${prompt}\n`);
 
-        // TODO: 调用 skill-runner 执行 Agent
-        // const output = await skillRunner.run(stage.agent, prompt, template, state);
-
-        // 模拟 Agent 执行并更新 Slot
-        console.log(`\n[模拟 Agent 执行中...]\n`);
+        // 调用 SkillRunner
+        const skillResult = await SkillRunner.run({
+          agentName: stage.agent,
+          userId: this.userId,
+          projectId: this.projectId,
+          template,
+          state,
+          prompt,
+          api: this.api,
+          additionalTools: [
+            { id: 'pipeline_read', name: 'pipeline_read' },
+            { id: 'pipeline_write_slot', name: 'pipeline_write_slot' },
+            { id: 'pipeline_add_remark', name: 'pipeline_add_remark' },
+            { id: 'style_get_profile', name: 'style_get_profile' },
+            { id: 'style_record_feedback', name: 'style_record_feedback' },
+          ],
+        });
+        
+        console.log(`\n[Agent 执行结果]\n${skillResult.output}\n`);
         
         // 重新加载 state（Agent 可能已修改）
         state = await this.stateManager.load();
@@ -120,8 +137,17 @@ export class PipelineRunner {
         } else if (input.trim().startsWith('msg ')) {
           const message = input.trim().slice(4);
           console.log(`\n[对话模式: 与 ${agentName} 沟通]\n消息: ${message}\n`);
-          // TODO: 调用 route_message 或类似逻辑
-          console.log(`[模拟 Agent 响应...]\n`);
+          try {
+            const sessionKey = `${agentName}:${this.userId}:${this.projectId}`;
+            const response = await callSubagent(this.api, sessionKey, message);
+            if (response) {
+              console.log(`\n[Agent 响应]\n${response}\n`);
+            } else {
+              console.log(`[模拟 Agent 响应...]\n`);
+            }
+          } catch (err) {
+            console.log(`\n[Agent 调用出错: ${err}]\n`);
+          }
           await this.waitForCheckpointApproval(agentName, state, template, profile, promptBuilder);
           resolve();
         } else {
@@ -179,6 +205,8 @@ export async function executeUntilCheckpoint(
         projectId: context.project_id,
         template,
         state,
+        prompt,
+        api: (context as any).api,
         additionalTools: [
           { id: 'pipeline_read', name: 'pipeline_read' },
           { id: 'pipeline_write_slot', name: 'pipeline_write_slot' },

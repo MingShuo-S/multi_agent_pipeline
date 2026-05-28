@@ -49,9 +49,44 @@ export interface AgentProfile {
   last_updated: string;
 }
 
+export interface SubagentAPI {
+  run(params: { sessionKey: string; message: string; provider?: string; model?: string; extraSystemPrompt?: string; lightContext?: boolean; deliver?: boolean }): Promise<{ runId: string }>;
+  waitForRun(params: { runId: string; timeoutMs?: number }): Promise<{ status: 'ok' | 'error' | 'timeout'; error?: string }>;
+  getSessionMessages(params: { sessionKey: string; limit?: number }): Promise<{ messages: unknown[] }>;
+}
+
+export function extractAssistantText(messages: unknown[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i] as any;
+    if (msg?.role === 'assistant' && typeof msg?.content === 'string') {
+      return msg.content;
+    }
+  }
+  return '';
+}
+
+export async function callSubagent(
+  api: { runtime: { subagent: SubagentAPI } } | undefined,
+  sessionKey: string,
+  message: string,
+  timeoutMs = 180000
+): Promise<string> {
+  if (!api?.runtime?.subagent) {
+    return '';
+  }
+  const { runId } = await api.runtime.subagent.run({ sessionKey, message });
+  const result = await api.runtime.subagent.waitForRun({ runId, timeoutMs });
+  if (result.status !== 'ok') {
+    throw new Error(`Subagent run failed: ${result.error || result.status}`);
+  }
+  const { messages } = await api.runtime.subagent.getSessionMessages({ sessionKey, limit: 1 });
+  return extractAssistantText(messages);
+}
+
 export interface ToolContext {
   agent_name: string;
   user_id: string;
   project_id: string;
   workspace_root: string;
+  api?: { runtime: { subagent: SubagentAPI } };
 }

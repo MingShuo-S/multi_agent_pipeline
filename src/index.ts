@@ -158,9 +158,10 @@ export default defineToolPlugin({
         try {
           const wsRoot = (params as any).workspace_root || WS;
           const result = await routeMessage(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot },
+            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot, api: _context.api },
             (params as any).target_agent,
-            (params as any).message
+            (params as any).message,
+            _context.api
           );
           return typeof result === 'string' ? result : result;
         } catch (err) {
@@ -247,7 +248,8 @@ export default defineToolPlugin({
             p.template_name,
             p.user_id,
             p.project_id,
-            p.workspace_root || WS
+            p.workspace_root || WS,
+            _context.api
           );
           return result;
         } catch (err) {
@@ -273,7 +275,8 @@ export default defineToolPlugin({
             p.user_id,
             p.project_id,
             p.feedback,
-            p.workspace_root || WS
+            p.workspace_root || WS,
+            _context.api
           );
           return result;
         } catch (err) {

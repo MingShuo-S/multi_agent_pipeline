@@ -2,7 +2,7 @@
 
 import path from 'path';
 import { promises as fs } from 'fs';
-import { ToolContext, Template } from '../types.js';
+import { ToolContext, Template, callSubagent } from '../types.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { MemoryManager } from './memory.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
@@ -13,7 +13,8 @@ export class RouteMessageHandler {
   async routeMessage(
     context: ToolContext,
     targetAgent: string,
-    message: string
+    message: string,
+    api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
   ): Promise<string> {
     // 1. 验证调用者是否为 orchestrator
     if (!context.agent_name.includes('orchestrat')) {
@@ -55,9 +56,14 @@ export class RouteMessageHandler {
       ? await promptBuilder.buildPipelinePrompt(targetAgent, template, state, profile, message)
       : this.buildDialoguePrompt(targetAgent, message, profile);
 
-    // 5. 调用 Agent（这里模拟，实际需要调用 OpenClaw）
-    // TODO: 集成 OpenClaw skill-runner
-    return `[模拟] ${targetAgent} 收到消息并处理中...\n当前暂不支持实际 Agent 调用，请在生成 skill-runner.ts 后实现`;
+    // 5. 调用 Agent（使用复合 sessionKey 隔离项目/用户会话）
+    const sessionKey = `${targetAgent}:${context.user_id}:${context.project_id}`;
+    const agentResponse = await callSubagent(api, sessionKey, systemPrompt);
+    if (agentResponse) {
+      return agentResponse;
+    }
+
+    return `[模拟] ${targetAgent} 收到消息并处理中...\n当前暂不支持实际 Agent 调用（api.runtime.subagent 不可用）`;
   }
 
   private buildDialoguePrompt(agentName: string, message: string, profile: any): string {
@@ -92,10 +98,11 @@ export class RouteMessageHandler {
 export async function routeMessage(
   context: ToolContext,
   targetAgent: string,
-  message: string
+  message: string,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<string> {
   const handler = new RouteMessageHandler(context.workspace_root);
-  return await handler.routeMessage(context, targetAgent, message);
+  return await handler.routeMessage(context, targetAgent, message, api);
 }
 
 /**
