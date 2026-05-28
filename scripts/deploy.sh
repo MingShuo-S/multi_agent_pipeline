@@ -11,7 +11,18 @@ source ~/.bashrc 2>/dev/null || true
 BAYESDL_API_KEY="${BAYESDL_API_KEY:-}"
 PLUGIN_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-OPENCLAW_HOME="${HOME}/.openclaw"
+# 自动探测 gateway 配置目录（可能以 node/root 等不同用户运行）
+OPENCLAW_HOME=""
+for candidate in "$HOME/.openclaw" "/home/node/.openclaw" "/root/.openclaw"; do
+  if [ -f "$candidate/openclaw.json" ]; then
+    OPENCLAW_HOME="$candidate"
+    break
+  fi
+done
+if [ -z "$OPENCLAW_HOME" ]; then
+  OPENCLAW_HOME="${HOME}/.openclaw"
+  echo "⚠ 未找到现有 openclaw.json，使用 ${OPENCLAW_HOME}"
+fi
 AGENT_WORKSPACE_ROOT="${OPENCLAW_HOME}/workspace"
 PLUGIN_WORKSPACE="${OPENCLAW_HOME}/workspaces/multi-agent-pipeline"
 
@@ -21,6 +32,12 @@ echo "=== 步骤 0: 检查环境 ==="
 if [ ! -f "${PLUGIN_DIR}/dist/index.js" ]; then
   echo "✗ 未找到 dist/index.js，请先 npm run build"
   exit 1
+fi
+
+# 用户一致性检查
+if [ "$(whoami)" = "root" ] && echo "$OPENCLAW_HOME" | grep -q "/home/"; then
+  echo "⚠ 当前为 root 用户，但 gateway 配置在 $OPENCLAW_HOME 下"
+  echo "  建议: su - node 后重新运行本脚本"
 fi
 
 if [ -z "$BAYESDL_API_KEY" ]; then
