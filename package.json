@@ -10,9 +10,7 @@
   "description": "多 Agent 文件管道——Slot 所有权 + Remark 追溯 + 用户级进化记忆",
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "prepare": "npm run build",
-    "prepublishOnly": "npm run build"
+    "dev": "tsc --watch"
   },
   "keywords": [
     "openclaw",
