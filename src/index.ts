@@ -13,7 +13,6 @@ import { Type } from '@sinclair/typebox';
 import { 
   definePluginEntry, 
   type OpenClawPluginApi,
-  type OpenClawPluginToolContext
 } from 'openclaw/plugin-sdk/plugin-entry';
 import { join } from 'path';
 
@@ -39,9 +38,9 @@ function getWorkspaceRoot(_ctx?: any): string {
 /**
  * 从插件上下文获取运行时上下文
  */
-function getContextFromToolContext(ctx: OpenClawPluginToolContext) {
+function getToolContext() {
   return {
-    agent_name: ctx.agentId || 'unknown',
+    agent_name: 'unknown',
     user_id: 'default-user',
     project_id: 'default-project',
     workspace_root: getWorkspaceRoot(),
@@ -87,7 +86,7 @@ export default definePluginEntry({
 
   register(api: OpenClawPluginApi) {
     // 注册 pipeline_read 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'pipeline_read',
       label: 'pipeline_read',
       description: '读取管道中当前阶段允许的 Slot 内容。当前 Agent 只能读取授权给自己的 slot。',
@@ -96,7 +95,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           const configManager = new WorkspaceConfigManager(context.workspace_root);
           const { StateManager } = await import('./runtime/state-manager.js');
           const stateManager = new StateManager(
@@ -118,10 +117,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 pipeline_write_slot 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'pipeline_write_slot',
       label: 'pipeline_write_slot',
       description: '写入 Slot 内容。当前 Agent 只能写入授权给自己的 slot。',
@@ -131,7 +130,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           const configManager = new WorkspaceConfigManager(context.workspace_root);
           const { StateManager } = await import('./runtime/state-manager.js');
           const stateManager = new StateManager(
@@ -151,10 +150,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 pipeline_add_remark 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'pipeline_add_remark',
       label: 'pipeline_add_remark',
       description: '为管道添加批注或建议',
@@ -163,7 +162,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           await pipelineAddRemark(context, (params as any).content);
           
           return textResult('✅ 批注已添加', { success: true });
@@ -174,17 +173,17 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 style_get_profile 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'style_get_profile',
       label: 'style_get_profile',
       description: '获取当前 Agent 对当前用户的长期记忆偏好',
       parameters: Type.Object({}),
       async execute(_id: string, _params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           const result = await styleGetProfile(context);
           
           return jsonResult(result);
@@ -195,10 +194,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 style_record_feedback 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'style_record_feedback',
       label: 'style_record_feedback',
       description: '更新当前 Agent 对当前用户的长期记忆偏好',
@@ -209,7 +208,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           await styleRecordFeedback(context, (params as any).preference_updates);
           
           return textResult('✅ 记忆已更新', { success: true });
@@ -220,10 +219,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 route_message 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'route_message',
       label: 'route_message',
       description: '将消息路由给指定的专业 Agent，实现直接对话（仅限 orchestrator 使用）',
@@ -233,7 +232,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           const result = await routeMessage(context, (params as any).target_agent, (params as any).message);
           
           return typeof result === 'string' 
@@ -246,10 +245,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 workspace_config 工具
-    api.registerTool((ctx: OpenClawPluginToolContext) => ({
+    api.registerTool({
       name: 'workspace_config',
       label: 'workspace_config',
       description: '读取或修改管道模板和用户记忆文件',
@@ -267,7 +266,7 @@ export default definePluginEntry({
       }),
       async execute(_id: string, params: Record<string, unknown>) {
         try {
-          const context = getContextFromToolContext(ctx);
+          const context = getToolContext();
           const p = params as any;
           const wsRoot = p.workspace_root || context.workspace_root;
           const payload = p.action === 'read_memory' || p.action === 'write_memory'
@@ -283,10 +282,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 agent_guide_generator 工具
-    api.registerTool(() => ({
+    api.registerTool({
       name: 'agent_guide_generator',
       label: 'agent_guide_generator',
       description: '为指定 Agent 生成或更新管道协作指南',
@@ -316,10 +315,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 pipeline_start 工具
-    api.registerTool(() => ({
+    api.registerTool({
       name: 'pipeline_start',
       label: 'pipeline_start',
       description: '启动一个多 Agent 管道项目，执行到第一个 checkpoint 阶段后暂停',
@@ -346,10 +345,10 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
 
     // 注册 pipeline_continue 工具
-    api.registerTool(() => ({
+    api.registerTool({
       name: 'pipeline_continue',
       label: 'pipeline_continue',
       description: '继续管道执行：agree 推进到下一阶段，或输入修改意见',
@@ -376,7 +375,7 @@ export default definePluginEntry({
           );
         }
       },
-    }));
+    });
   },
 });
 
