@@ -66,14 +66,8 @@ export async function executeUntilCheckpoint(
       const prompt = await promptBuilder.buildPipelinePrompt(stage.agent, template, state, profile);
 
       // 调用真实 Agent（复合 sessionKey 隔离项目会话）
-      let agentOutput = '';
-      try {
-        const sessionKey = `${stage.agent}:${userId}:${projectId}`;
-        const result = await callSubagent(api, sessionKey, prompt);
-        agentOutput = result || `[Agent ${stage.agent} 执行结果] 模拟产出 for ${stage.allow_write[0] || 'output'}`;
-      } catch (err) {
-        agentOutput = `[Agent ${stage.agent} 执行出错] ${String(err)}`;
-      }
+      const sessionKey = `${stage.agent}:${userId}:${projectId}`;
+      const agentOutput = await callSubagent(api, sessionKey, prompt);
       
       if (stage.allow_write.length > 0) {
         const slotName = stage.allow_write[0];

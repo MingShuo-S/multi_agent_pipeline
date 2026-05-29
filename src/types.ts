@@ -72,8 +72,7 @@ export async function callSubagent(
   timeoutMs = 180000
 ): Promise<string> {
   if (!api?.runtime?.subagent) {
-    console.warn(`[callSubagent] api.runtime.subagent 不可用，回退到模拟输出。api=${typeof api}, runtime=${typeof api?.runtime}, subagent=${typeof api?.runtime?.subagent}`);
-    return '';
+    throw new Error(`api.runtime.subagent 不可用：无法调用子 Agent。请确认插件已正确集成到 Gateway 运行环境。api=${typeof api}, runtime=${typeof api?.runtime}, subagent=${typeof api?.runtime?.subagent}`);
   }
   const { runId } = await api.runtime.subagent.run({ sessionKey, message });
   const result = await api.runtime.subagent.waitForRun({ runId, timeoutMs });
