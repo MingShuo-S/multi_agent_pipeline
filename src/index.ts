@@ -148,7 +148,7 @@ export default defineToolPlugin({
     tool({
       name: 'route_message',
       label: 'route_message',
-      description: '将消息路由给指定的专业 Agent，实现直接对话（仅限 orchestrator 使用）',
+      description: '将消息路由给指定的子 Agent 进行直接对话，子 Agent 会看到完整会话历史（仅限 orchestrator 使用）。适合多轮讨论/修改。',
       parameters: Type.Object({
         target_agent: Type.String({ description: '目标 Agent 名称' }),
         message: Type.String({ description: '要发送的消息' }),
@@ -234,7 +234,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_start',
       label: 'pipeline_start',
-      description: '启动一个多 Agent 管道项目，执行到第一个 checkpoint 阶段后暂停',
+      description: '启动管道，执行到第一个 checkpoint 后暂停并返回子 Agent 产出（在 slot_output.value 中），将此内容直接展示给用户。',
       parameters: Type.Object({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
         user_id: Type.String({ description: '用户 ID（如 alice）' }),
@@ -261,7 +261,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_continue',
       label: 'pipeline_continue',
-      description: '继续管道执行：agree 推进到下一阶段，或输入修改意见',
+      description: '继续管道执行：feedback="agree" 推进到下一阶段（新阶段产出在 slot_output.value 中）；其他 feedback 会路由给当前阶段子 Agent 修改（修改后产出也在 slot_output.value 中）。将 slot_output.value 的内容展示给用户。',
       parameters: Type.Object({
         user_id: Type.String({ description: '用户 ID' }),
         project_id: Type.String({ description: '项目 ID' }),

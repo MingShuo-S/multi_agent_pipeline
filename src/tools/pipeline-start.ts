@@ -91,6 +91,7 @@ export async function executeUntilCheckpoint(
         const slotName = stage.allow_write[0];
         const slotValue = state.slot_values[slotName];
 
+        const contentText = typeof slotValue === 'string' ? slotValue : JSON.stringify(slotValue, null, 2);
         return {
           status: 'checkpoint_reached',
           current_stage: startStage,
@@ -102,7 +103,7 @@ export async function executeUntilCheckpoint(
             owner: stage.agent,
             written_at: new Date().toISOString(),
           },
-          message: `✅ 已完成：${stage.id} 阶段\n\n内容已写入 ${slotName}，请检查：\n---\n${JSON.stringify(slotValue, null, 2)}\n---\n\n输入"agree"继续，或直接说修改意见。`,
+          message: `${contentText}\n\n---\n输入"agree"继续，或直接说修改意见。`,
         };
       }
 

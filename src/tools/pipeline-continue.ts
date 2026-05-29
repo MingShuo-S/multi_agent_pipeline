@@ -166,7 +166,7 @@ export async function pipelineContinue(
             owner: currentStage.agent,
             written_at: new Date().toISOString(),
           },
-          message: `✅ 已重新提交。请确认修改是否满意，或继续反馈。\n\n---\n${JSON.stringify(revisedOutput, null, 2)}\n---`,
+          message: `${typeof revisedOutput === 'string' ? revisedOutput : JSON.stringify(revisedOutput, null, 2)}\n\n---\n输入"agree"继续，或直接说修改意见。`,
         };
       } catch (err) {
         return {
