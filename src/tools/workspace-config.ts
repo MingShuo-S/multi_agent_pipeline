@@ -18,7 +18,8 @@ export class WorkspaceConfigManager {
   }
 
   async readTemplate(templateName: string): Promise<Template> {
-    const templatePath = path.join(this.workspaceRoot, 'templates', `${templateName}.json`);
+    const cleanName = templateName.replace(/\.json$/i, '');
+    const templatePath = path.join(this.workspaceRoot, 'templates', `${cleanName}.json`);
     try {
       const content = await fs.readFile(templatePath, 'utf-8');
       return JSON.parse(content);

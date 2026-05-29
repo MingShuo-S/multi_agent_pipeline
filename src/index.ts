@@ -1,7 +1,5 @@
 import { Type } from '@sinclair/typebox';
 import { defineToolPlugin } from 'openclaw/plugin-sdk/tool-plugin';
-import { homedir } from 'os';
-import { join } from 'path';
 
 import { pipelineRead, pipelineWriteSlot, pipelineAddRemark } from './tools/pipeline.js';
 import { styleGetProfile, styleRecordFeedback } from './tools/memory.js';
@@ -10,10 +8,33 @@ import { agentGuideGenerator } from './tools/agent-guide-generator.js';
 import { routeMessage } from './tools/route-message.js';
 import { pipelineStart } from './tools/pipeline-start.js';
 import { pipelineContinue } from './tools/pipeline-continue.js';
-
-const WS = join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
+import { StateManager } from './runtime/state-manager.js';
+import { WORKSPACE_ROOT } from './config.js';
+import type { ToolContext } from './types.js';
 
 const wsParam = Type.Optional(Type.String({ description: '工作区根目录' }));
+
+function pickWs(p: any): string {
+  return (p as any)?.workspace_root || WORKSPACE_ROOT;
+}
+
+async function resolveStateContext(wsRoot: string): Promise<{ userId: string; projectId: string; templateName: string }> {
+  const active = await StateManager.findActiveState(wsRoot);
+  if (!active) {
+    throw new Error('没有找到活跃的管道项目，请先调用 pipeline_start');
+  }
+  return { userId: active.userId, projectId: active.projectId, templateName: active.state.template_name };
+}
+
+function toolCtx(ctx: any, wsRoot: string): ToolContext {
+  return {
+    agent_name: ctx?.agent_name || 'unknown',
+    user_id: ctx?.user_id || (ctx as any)?.session?.userId || 'default-user',
+    project_id: ctx?.project_id || (ctx as any)?.session?.projectId || 'default-project',
+    workspace_root: wsRoot,
+    api: ctx?.api,
+  };
+}
 
 export default defineToolPlugin({
   id: 'multi-agent-pipeline',
@@ -29,19 +50,12 @@ export default defineToolPlugin({
         slot_name: Type.String({ description: '要读取的 Slot 名称' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          const configManager = new WorkspaceConfigManager(wsRoot);
-          const { StateManager } = await import('./runtime/state-manager.js');
-          const stateManager = new StateManager(wsRoot, 'default-user', 'default-project');
-          const pipelineState = await stateManager.load();
-          const template = await configManager.readTemplate(pipelineState.template_name);
-          const result = await pipelineRead(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot },
-            (params as any).slot_name,
-            template
-          );
+          const wsRoot = pickWs(params);
+          const { userId, projectId, templateName } = await resolveStateContext(wsRoot);
+          const template = await new WorkspaceConfigManager(wsRoot).readTemplate(templateName);
+          const result = await pipelineRead(toolCtx(ctx, wsRoot), (params as any).slot_name, template);
           return typeof result === 'string' ? result : result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -58,20 +72,12 @@ export default defineToolPlugin({
         content: Type.String({ description: '要写入的内容' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          const configManager = new WorkspaceConfigManager(wsRoot);
-          const { StateManager } = await import('./runtime/state-manager.js');
-          const stateManager = new StateManager(wsRoot, 'default-user', 'default-project');
-          const pipelineState = await stateManager.load();
-          const template = await configManager.readTemplate(pipelineState.template_name);
-          await pipelineWriteSlot(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot },
-            (params as any).slot_name,
-            (params as any).content,
-            template
-          );
+          const wsRoot = pickWs(params);
+          const { userId, projectId, templateName } = await resolveStateContext(wsRoot);
+          const template = await new WorkspaceConfigManager(wsRoot).readTemplate(templateName);
+          await pipelineWriteSlot(toolCtx(ctx, wsRoot), (params as any).slot_name, (params as any).content, template);
           return '✅ 写入成功';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -87,13 +93,11 @@ export default defineToolPlugin({
         content: Type.String({ description: '批注内容' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          await pipelineAddRemark(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot },
-            (params as any).content
-          );
+          const wsRoot = pickWs(params);
+          const { userId, projectId } = await resolveStateContext(wsRoot);
+          await pipelineAddRemark(toolCtx(ctx, wsRoot), (params as any).content);
           return '✅ 批注已添加';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -108,12 +112,10 @@ export default defineToolPlugin({
       parameters: Type.Object({
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          const result = await styleGetProfile(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot }
-          );
+          const wsRoot = pickWs(params);
+          const result = await styleGetProfile(toolCtx(ctx, wsRoot));
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -131,13 +133,10 @@ export default defineToolPlugin({
         }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          await styleRecordFeedback(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot },
-            (params as any).preference_updates
-          );
+          const wsRoot = pickWs(params);
+          await styleRecordFeedback(toolCtx(ctx, wsRoot), (params as any).preference_updates);
           return '✅ 记忆已更新';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -154,15 +153,10 @@ export default defineToolPlugin({
         message: Type.String({ description: '要发送的消息' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
-          const wsRoot = (params as any).workspace_root || WS;
-          const result = await routeMessage(
-            { agent_name: 'unknown', user_id: 'default-user', project_id: 'default-project', workspace_root: wsRoot, api: _context.api },
-            (params as any).target_agent,
-            (params as any).message,
-            _context.api
-          );
+          const wsRoot = pickWs(params);
+          const result = await routeMessage(toolCtx(ctx, wsRoot), (params as any).target_agent, (params as any).message, ctx.api);
           return typeof result === 'string' ? result : result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -187,13 +181,12 @@ export default defineToolPlugin({
         content: Type.Optional(Type.String({ description: '内容' })),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, _ctx) {
         try {
           const p = params as any;
-          const wsRoot = p.workspace_root || WS;
-          const payload = p.action === 'read_memory' || p.action === 'write_memory'
-            ? { ...p, user_id: 'default-user' }
-            : p;
+          const wsRoot = pickWs(p);
+          const uid = (_ctx as any).user_id || 'default-user';
+          const payload = p.action === 'read_memory' || p.action === 'write_memory' ? { ...p, user_id: uid } : p;
           const result = await workspaceConfig(wsRoot, p.action, payload);
           return result;
         } catch (err) {
@@ -215,15 +208,10 @@ export default defineToolPlugin({
         })),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, _ctx) {
         try {
           const p = params as any;
-          await agentGuideGenerator(
-            p.workspace_root || WS,
-            p.agent_name,
-            p.instructions,
-            p.append ?? false
-          );
+          await agentGuideGenerator(pickWs(p), p.agent_name, p.instructions, p.append ?? false);
           return '✅ 指南已更新';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -241,16 +229,10 @@ export default defineToolPlugin({
         project_id: Type.String({ description: '项目 ID（如 camping-post）' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
           const p = params as any;
-          const result = await pipelineStart(
-            p.template_name,
-            p.user_id,
-            p.project_id,
-            p.workspace_root || WS,
-            _context.api
-          );
+          const result = await pipelineStart(p.template_name, p.user_id, p.project_id, pickWs(p), ctx.api);
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -268,16 +250,10 @@ export default defineToolPlugin({
         feedback: Type.String({ description: '用户反馈（输入"agree"继续，或提供修改意见）' }),
         workspace_root: wsParam,
       }),
-      async execute(params, _config, _context) {
+      async execute(params, _config, ctx) {
         try {
           const p = params as any;
-          const result = await pipelineContinue(
-            p.user_id,
-            p.project_id,
-            p.feedback,
-            p.workspace_root || WS,
-            _context.api
-          );
+          const result = await pipelineContinue(p.user_id, p.project_id, p.feedback, pickWs(p), ctx.api);
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;

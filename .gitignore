@@ -13,6 +13,9 @@ dist/
 .env.local
 .env.*.local
 
+# OpenCode skills (environment-specific)
+.opencode/
+
 # IDE
 .vscode/
 .idea/

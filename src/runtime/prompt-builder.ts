@@ -43,7 +43,10 @@ export class PromptBuilder {
     promptParts.push(
       `【强制系统指令】\n` +
       `你是 ${agentName}。你的 SOUL 和行为风格由你的 SOUL.md 定义，请严格遵守。\n` +
-      `当前你正在参与一个多 Agent 管道项目，项目模板：${template.name}，阶段：${stage.id}。\n`
+      `当前你正在参与一个多 Agent 管道项目。\n` +
+      `项目模板：${template.name}，阶段：${stage.id}\n` +
+      `用户 ID：${this.userId}，项目 ID：${this.projectId}\n` +
+      `使用 pipeline_read/pipeline_write_slot 时无需传 user_id/project_id，系统会自动发现当前活跃项目。\n`
     );
 
     // 2. 协作规则

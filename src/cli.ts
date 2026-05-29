@@ -2,14 +2,9 @@
 
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import path from 'path';
-import os from 'os';
 import { PipelineRunner } from './runtime/pipeline-runner.js';
 import { initializeWorkspace } from './install.js';
-
-const getWorkspaceRoot = () => {
-  return path.join(os.homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
-};
+import { WORKSPACE_ROOT } from './config.js';
 
 yargs(hideBin(process.argv))
   .command(
@@ -42,9 +37,8 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv: any) => {
-      const workspaceRoot = getWorkspaceRoot();
       const runner = new PipelineRunner(
-        workspaceRoot,
+        WORKSPACE_ROOT,
         argv.user as string,
         argv.project as string,
         argv.template as string

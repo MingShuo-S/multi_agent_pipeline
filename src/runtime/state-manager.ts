@@ -81,4 +81,41 @@ export class StateManager {
     state.status = status;
     await this.save(state);
   }
+
+  /**
+   * 扫描工作区，找到唯一 status='running' 的活跃 state
+   * 供子 Agent 工具（pipeline_read/write/add_remark）自动发现上下文
+   */
+  static async findActiveState(workspaceRoot: string): Promise<{ userId: string; projectId: string; state: PipelineState } | null> {
+    const { promises: fs } = await import('fs');
+    const path = await import('path');
+    const projectsDir = path.default.join(workspaceRoot, 'projects');
+    try {
+      const userDirs = await fs.readdir(projectsDir);
+      for (const userId of userDirs) {
+        const userPath = path.default.join(projectsDir, userId);
+        let projectDirs: string[];
+        try {
+          projectDirs = await fs.readdir(userPath);
+        } catch {
+          continue;
+        }
+        for (const projectId of projectDirs) {
+          const statePath = path.default.join(userPath, projectId, 'state.json');
+          try {
+            const content = await fs.readFile(statePath, 'utf-8');
+            const state: PipelineState = JSON.parse(content);
+            if (state.status === 'running') {
+              return { userId, projectId, state };
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
+    } catch {
+      // projects 目录不存在
+    }
+    return null;
+  }
 }

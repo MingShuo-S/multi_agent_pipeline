@@ -2,12 +2,11 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import os from 'os';
+import { WORKSPACE_ROOT } from './config.js';
 
 export async function initializeWorkspace(): Promise<void> {
   try {
-    const openclawDir = path.join(os.homedir(), '.openclaw');
-    const workspaceRoot = path.join(openclawDir, 'workspaces', 'multi-agent-pipeline');
+    const workspaceRoot = WORKSPACE_ROOT;
 
     // 创建所有必要的目录
     const dirs = [

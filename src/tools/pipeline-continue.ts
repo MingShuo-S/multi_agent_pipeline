@@ -1,14 +1,11 @@
 // src/tools/pipeline-continue.ts - 处理用户反馈并继续推进管道
 
-import { join } from 'path';
-import { homedir } from 'os';
 import { ToolContext, PipelineState, Template } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { executeUntilCheckpoint } from './pipeline-start.js';
 import { routeMessage } from './route-message.js';
-
-const DEFAULT_WORKSPACE_ROOT = join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
+import { WORKSPACE_ROOT } from '../config.js';
 
 export interface ContinueResult {
   status: 'revised' | 'checkpoint_reached' | 'completed' | 'error';
@@ -63,7 +60,7 @@ export async function pipelineContinue(
   api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<ContinueResult> {
   try {
-    const finalWorkspaceRoot = workspaceRoot || DEFAULT_WORKSPACE_ROOT;
+    const finalWorkspaceRoot = workspaceRoot || WORKSPACE_ROOT;
     const stateManager = new StateManager(finalWorkspaceRoot, userId, projectId);
     const configManager = new WorkspaceConfigManager(finalWorkspaceRoot);
 

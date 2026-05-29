@@ -17,7 +17,7 @@ export class RouteMessageHandler {
     api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
   ): Promise<string> {
     // 1. 验证调用者是否为 orchestrator
-    if (!context.agent_name.includes('orchestrat')) {
+    if (context.agent_name !== 'orchestrator') {
       throw new Error(
         `route_message can only be called by orchestrator agents. Caller: ${context.agent_name}`
       );
@@ -35,10 +35,12 @@ export class RouteMessageHandler {
       state = await stateManager.load();
       const configManager = new WorkspaceConfigManager(context.workspace_root);
       template = await configManager.readTemplate(state.template_name);
-    } catch {
-      // 无活跃项目或状态，则只读取长期记忆
-      state = null;
-      template = null;
+    } catch (err: any) {
+      if (err?.code === 'ENOENT') {
+        state = null; template = null;
+      } else {
+        throw err;
+      }
     }
 
     // 3. 获取 Agent 的长期记忆
