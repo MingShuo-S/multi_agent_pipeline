@@ -216,11 +216,12 @@ export default defineToolPlugin({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
         user_id: Type.String({ description: '用户 ID' }),
         project_id: Type.String({ description: '项目 ID' }),
+        workspace_root: Type.Optional(Type.String({ description: '工作区根目录（可选，默认使用 ~/.openclaw/workspaces/multi-agent-pipeline）' })),
       }),
       async execute(params, _config, ctx) {
         try {
           const p = params as any;
-          const result = await pipelineStart(p.template_name, p.user_id, p.project_id, pickWs(), ctx.api);
+          const result = await pipelineStart(p.template_name, p.user_id, p.project_id, p.workspace_root || pickWs(), ctx.api);
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
