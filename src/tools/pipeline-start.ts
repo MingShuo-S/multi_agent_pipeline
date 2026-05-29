@@ -196,5 +196,35 @@ export async function pipelineStart(
   workspaceRoot: string,
   api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
 ): Promise<CheckpointResult> {
+  if (!templateName) {
+    return {
+      status: 'error',
+      current_stage: -1,
+      current_stage_name: '错误',
+      checkpoint: false,
+      message: '缺少必要参数 template_name，请指定模板名称（如 xiaohongshu-creation）。可用 workspace_config list_templates 查看所有模板。',
+      error: 'template_name is required but was not provided',
+    };
+  }
+  if (!userId) {
+    return {
+      status: 'error',
+      current_stage: -1,
+      current_stage_name: '错误',
+      checkpoint: false,
+      message: '缺少必要参数 user_id',
+      error: 'user_id is required',
+    };
+  }
+  if (!projectId) {
+    return {
+      status: 'error',
+      current_stage: -1,
+      current_stage_name: '错误',
+      checkpoint: false,
+      message: '缺少必要参数 project_id',
+      error: 'project_id is required',
+    };
+  }
   return executeUntilCheckpoint(workspaceRoot || WORKSPACE_ROOT, userId, projectId, templateName, false, api);
 }
