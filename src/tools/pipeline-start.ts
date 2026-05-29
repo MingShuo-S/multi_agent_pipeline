@@ -3,6 +3,7 @@
 import { ToolContext, Template, PipelineState, callSubagent } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
+import { initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { WORKSPACE_ROOT } from '../config.js';
@@ -46,11 +47,11 @@ export async function executeUntilCheckpoint(
     // 如果是第一次调用，初始化 state
     const stateExists = await stateExists_check(stateManager);
     if (!stateExists) {
-      template = await configManager.readTemplate(templateName);
+      template = await loadTemplateWithAutoInit(configManager, workspaceRoot, templateName);
       state = await stateManager.initialize(template);
     } else {
       state = await stateManager.load();
-      template = await configManager.readTemplate(state.template_name);
+      template = await loadTemplateWithAutoInit(configManager, workspaceRoot, state.template_name);
     }
 
     let startStage = skipFirstStage ? state.current_stage + 1 : state.current_stage;
@@ -127,6 +128,22 @@ export async function executeUntilCheckpoint(
       message: `❌ 执行出错: ${String(err)}`,
       error: String(err),
     };
+  }
+}
+
+/**
+ * 加载模板，如果不存在则自动初始化工作区并重试
+ */
+async function loadTemplateWithAutoInit(
+  configManager: WorkspaceConfigManager,
+  workspaceRoot: string,
+  templateName: string
+): Promise<Template> {
+  try {
+    return await configManager.readTemplate(templateName);
+  } catch {
+    await initWorkspace(workspaceRoot);
+    return await configManager.readTemplate(templateName);
   }
 }
 

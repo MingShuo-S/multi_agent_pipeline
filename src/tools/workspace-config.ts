@@ -3,6 +3,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { Template } from '../types.js';
+import { SEED_TEMPLATES_DIR } from '../config.js';
 
 export class WorkspaceConfigManager {
   constructor(private workspaceRoot: string) {}
@@ -150,7 +151,7 @@ export async function workspaceConfig(
 /**
  * 初始化工作区：创建目录结构、写入种子模板
  */
-async function initWorkspace(workspaceRoot: string): Promise<{ created: string[]; message: string }> {
+export async function initWorkspace(workspaceRoot: string): Promise<{ created: string[]; message: string }> {
   const dirs = [
     path.join(workspaceRoot, 'templates'),
     path.join(workspaceRoot, 'projects'),
@@ -162,7 +163,7 @@ async function initWorkspace(workspaceRoot: string): Promise<{ created: string[]
     created.push(dir);
   }
 
-  const seedDir = new URL('../templates', import.meta.url).pathname;
+  const seedDir = SEED_TEMPLATES_DIR;
   try {
     const seedFiles = await fs.readdir(seedDir);
     for (const file of seedFiles.filter(f => f.endsWith('.json'))) {
