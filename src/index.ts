@@ -173,6 +173,7 @@ export default defineToolPlugin({
           Type.Literal('list_templates'),
           Type.Literal('read_template'),
           Type.Literal('write_template'),
+          Type.Literal('init_workspace'),
           Type.Literal('read_memory'),
           Type.Literal('write_memory'),
         ], { description: '操作类型' }),

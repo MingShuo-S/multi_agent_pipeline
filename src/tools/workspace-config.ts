@@ -24,7 +24,11 @@ export class WorkspaceConfigManager {
       const content = await fs.readFile(templatePath, 'utf-8');
       return JSON.parse(content);
     } catch (err) {
-      throw new Error(`Failed to read template '${templateName}': ${err}`);
+      throw new Error(
+        `模板 '${templateName}' 不存在于 ${path.join(this.workspaceRoot, 'templates')}。` +
+        `请先调用 workspace_config 的 init_workspace 操作初始化工作区，` +
+        `或确认 template_name 参数正确。`
+      );
     }
   }
 
@@ -135,25 +139,80 @@ export async function workspaceConfig(
       if (!params.template_name) throw new Error('template_name required');
       return await manager.resetTemplate(params.template_name);
 
+    case 'init_workspace':
+      return await initWorkspace(workspaceRoot);
+
     default:
-      throw new Error(`Unknown action: ${action}`);
+      throw new Error(`Unknown action: ${action}. 可用操作: list_templates, read_template, write_template, init_workspace, read_memory, write_memory`);
   }
+}
+
+/**
+ * 初始化工作区：创建目录结构、写入种子模板
+ */
+async function initWorkspace(workspaceRoot: string): Promise<{ created: string[]; message: string }> {
+  const dirs = [
+    path.join(workspaceRoot, 'templates'),
+    path.join(workspaceRoot, 'projects'),
+    path.join(workspaceRoot, 'projects', '__example__', 'agents'),
+  ];
+  const created: string[] = [];
+  for (const dir of dirs) {
+    await fs.mkdir(dir, { recursive: true });
+    created.push(dir);
+  }
+
+  const seedDir = new URL('../templates', import.meta.url).pathname;
+  try {
+    const seedFiles = await fs.readdir(seedDir);
+    for (const file of seedFiles.filter(f => f.endsWith('.json'))) {
+      const src = path.join(seedDir, file);
+      const dst = path.join(workspaceRoot, 'templates', file);
+      await fs.copyFile(src, dst);
+      created.push(dst);
+    }
+  } catch {
+    // 种子目录不存在时创建默认模板
+    const defaultTemplate = {
+      name: 'default',
+      description: '默认流水线模板：调研 → 创作 → 审核',
+      stages: [
+        { id: 'research', agent: 'web-researcher', checkpoint: true, allow_read: ['topic'], allow_write: ['research'] },
+        { id: 'write', agent: 'content-writer', checkpoint: true, allow_read: ['topic', 'research'], allow_write: ['draft'] },
+        { id: 'review', agent: 'quality-reviewer', checkpoint: true, allow_read: ['topic', 'draft'], allow_write: ['output'] },
+      ],
+      slots: {
+        topic: { type: 'text', default: '' },
+        research: { type: 'text', default: '' },
+        draft: { type: 'text', default: '' },
+        output: { type: 'text', default: '' },
+      },
+    };
+    const fallbackPath = path.join(workspaceRoot, 'templates', 'default.json');
+    await fs.writeFile(fallbackPath, JSON.stringify(defaultTemplate, null, 2));
+    created.push(fallbackPath);
+  }
+
+  return {
+    created,
+    message: `工作区初始化完成。模板目录: ${path.join(workspaceRoot, 'templates')}`,
+  };
 }
 
 /**
  * 为工具导出标准的 OpenClaw 工具定义
  */
 export const workspaceConfigTool = {
-  workspace_config: {
+    workspace_config: {
     id: 'workspace_config',
     name: 'workspace_config',
-    description: '管理管道工作区的配置、模板和记忆文件',
+    description: '管理管道工作区的配置、模板和记忆文件。首次使用前请先调用 init_workspace 初始化工作区。',
     parameters: {
       type: 'object',
       properties: {
         action: {
           type: 'string',
-          enum: ['list_templates', 'read_template', 'write_template', 'read_memory', 'write_memory', 'reset_template'],
+          enum: ['list_templates', 'read_template', 'write_template', 'read_memory', 'write_memory', 'reset_template', 'init_workspace'],
           description: '执行的操作',
         },
         template_name: {

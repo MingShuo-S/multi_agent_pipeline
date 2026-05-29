@@ -1,0 +1,33 @@
+{
+  "name": "blog-writing",
+  "description": "博客文章创作流水线：调研 → 写作 → 审核",
+  "stages": [
+    {
+      "id": "research",
+      "agent": "web-researcher",
+      "checkpoint": true,
+      "allow_read": ["topic"],
+      "allow_write": ["research_data"]
+    },
+    {
+      "id": "writing",
+      "agent": "content-writer",
+      "checkpoint": true,
+      "allow_read": ["topic", "research_data"],
+      "allow_write": ["draft"]
+    },
+    {
+      "id": "review",
+      "agent": "quality-reviewer",
+      "checkpoint": true,
+      "allow_read": ["topic", "draft"],
+      "allow_write": ["final_post"]
+    }
+  ],
+  "slots": {
+    "topic": { "type": "text", "default": "" },
+    "research_data": { "type": "text", "default": "" },
+    "draft": { "type": "text", "default": "" },
+    "final_post": { "type": "text", "default": "" }
+  }
+}
