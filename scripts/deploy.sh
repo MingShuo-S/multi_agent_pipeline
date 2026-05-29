@@ -89,6 +89,18 @@ for agent in "${AGENTS[@]}"; do
   echo "  ✓ ${AGENT_WORKSPACE_ROOT}/${agent}"
 done
 
+# ---------- 步骤 2.5: 拷贝模板到 Agent 工作区 ----------
+echo ""
+echo "=== 步骤 2.5: 拷贝模板到 Agent 工作区 ==="
+
+mkdir -p "${AGENT_WORKSPACE_ROOT}/orchestrator/templates"
+if [ -f "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" ]; then
+  cp "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" "${AGENT_WORKSPACE_ROOT}/orchestrator/templates/xiaohongshu-creation.json"
+  echo "  ✓ 模板已复制到 orchestrator 工作区"
+else
+  echo "  ⚠ 未找到源码模板，跳过"
+fi
+
 # ---------- 步骤 3: 写入 SOUL.md ----------
 echo ""
 echo "=== 步骤 3: 写入 SOUL.md ==="
