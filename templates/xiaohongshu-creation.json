@@ -1,41 +1,48 @@
 {
   "name": "xiaohongshu-creation",
-  "description": "生成一篇小红书笔记：选题 → 调研 → 写作 → 审核 → 发布",
+  "description": "小红书笔记创作：选题对话 → 调研验证 → 写作打磨 → 审核 → 发布",
+  "mode": "relay",
+  "author_label": "本文由 [用户] 与部虾创专家团联合创作",
   "stages": [
     {
       "id": "topic-research",
       "agent": "topic-researcher",
       "checkpoint": true,
       "allow_read": ["*"],
-      "allow_write": ["topic_brief"]
+      "allow_write": ["topic_brief"],
+      "description": "与用户对话，确定选题方向和目标受众"
     },
     {
       "id": "web-research",
       "agent": "web-researcher",
-      "checkpoint": false,
+      "checkpoint": true,
       "allow_read": ["topic_brief"],
-      "allow_write": ["research_notes"]
+      "allow_write": ["research_notes"],
+      "description": "调研验证：收集路线、价格、交通等具体数据"
     },
     {
       "id": "draft-writing",
       "agent": "content-writer",
       "checkpoint": true,
       "allow_read": ["topic_brief", "research_notes"],
-      "allow_write": ["draft_content"]
+      "allow_write": ["draft_content"],
+      "description": "创作正文：基于调研数据 + 风格档案写作"
     },
     {
       "id": "review",
       "agent": "quality-reviewer",
-      "checkpoint": false,
+      "checkpoint": true,
       "allow_read": ["draft_content", "research_notes"],
-      "allow_write": ["review_feedback"]
+      "allow_write": ["review_feedback"],
+      "description": "质量审核：事实核查、撞车检测、平台规则检查"
     },
     {
       "id": "publish",
       "agent": "publisher",
-      "checkpoint": false,
+      "checkpoint": true,
       "allow_read": ["draft_content", "review_feedback"],
-      "allow_write": ["final_output"]
+      "allow_write": ["final_output"],
+      "description": "发布准备：标题优化 + 标签生成 + 平台格式化"
     }
   ],
   "slots": {
@@ -44,5 +51,21 @@
     "draft_content": { "type": "text", "default": "" },
     "review_feedback": { "type": "text", "default": "" },
     "final_output": { "type": "text", "default": "" }
-  }
+  },
+  "platforms": [
+    {
+      "platform": "xiaohongshu",
+      "ai_label_required": true,
+      "forbidden_automation": true,
+      "sensitive_words": ["最", "第一", "100%", "绝对", "根治"],
+      "content_rules": "必须标注AI辅助创作，不得声称100%AI生成，不得发布虚假评测"
+    },
+    {
+      "platform": "douyin",
+      "ai_label_required": true,
+      "forbidden_automation": true,
+      "sensitive_words": ["购买链接", "私信", "加微信"],
+      "content_rules": "必挂AI标识，严禁纯自动化AI工具发布"
+    }
+  ]
 }

@@ -8,6 +8,7 @@ import { agentGuideGenerator } from './tools/agent-guide-generator.js';
 import { routeMessage } from './tools/route-message.js';
 import { pipelineStart } from './tools/pipeline-start.js';
 import { pipelineContinue } from './tools/pipeline-continue.js';
+import { pipelineStatus } from './tools/pipeline-status.js';
 import { StateManager } from './runtime/state-manager.js';
 import { WORKSPACE_ROOT } from './config.js';
 import type { ToolContext } from './types.js';
@@ -36,8 +37,8 @@ function toolCtx(ctx: any): ToolContext {
 
 export default defineToolPlugin({
   id: 'multi-agent-pipeline',
-  name: '通用多 Agent 流水线引擎',
-  description: '多 Agent 协作流水线引擎：编排子 Agent 按管道模板依次执行，每阶段产出经用户确认后推进。',
+  name: '部虾创 - 多 Agent 接力流水线引擎',
+  description: '部虾创：多 Agent 协作接力引擎。每个专家与用户直接对话，人在回路决定推进节奏。Slot 权限隔离 + 版本历史全程可追溯。',
 
   tools: (tool) => [
     tool({
@@ -63,7 +64,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_write_slot',
       label: 'pipeline_write_slot',
-      description: '写入 Slot 内容。当前 Agent 只能写入授权给自己的 slot。',
+      description: '写入 Slot 内容并追加版本历史。当前 Agent 只能写入授权给自己的 slot。',
       parameters: Type.Object({
         slot_name: Type.String({ description: '要写入的 Slot 名称' }),
         content: Type.String({ description: '要写入的内容' }),
@@ -74,7 +75,7 @@ export default defineToolPlugin({
           const { userId, projectId, templateName } = await resolveStateContext();
           const template = await new WorkspaceConfigManager(wsRoot).readTemplate(templateName);
           await pipelineWriteSlot(toolCtx(ctx), (params as any).slot_name, (params as any).content, template);
-          return '✅ 写入成功';
+          return '成功写入';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -84,16 +85,35 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_add_remark',
       label: 'pipeline_add_remark',
-      description: '为管道添加批注或建议',
+      description: '为管道添加批注（会追加版本记录）',
       parameters: Type.Object({
         content: Type.String({ description: '批注内容' }),
       }),
       async execute(params, _config, ctx) {
         try {
           await pipelineAddRemark(toolCtx(ctx), (params as any).content);
-          return '✅ 批注已添加';
+          return '批注已添加';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'pipeline_status',
+      label: 'pipeline_status',
+      description: '查看管道项目完整状态面板：当前阶段、各阶段进度、Slot 版本历史、所有批注。用于 UI 渲染和状态监控。',
+      parameters: Type.Object({
+        user_id: Type.String({ description: '用户 ID' }),
+        project_id: Type.String({ description: '项目 ID' }),
+      }),
+      async execute(params, _config, _ctx) {
+        try {
+          const p = params as any;
+          const result = await pipelineStatus(p.user_id, p.project_id, pickWs());
+          return result;
+        } catch (err) {
+          return { status: 'error', error: String(err) };
         }
       },
     }),
@@ -125,7 +145,7 @@ export default defineToolPlugin({
       async execute(params, _config, ctx) {
         try {
           await styleRecordFeedback(toolCtx(ctx), (params as any).preference_updates);
-          return '✅ 记忆已更新';
+          return '记忆已更新';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -201,7 +221,7 @@ export default defineToolPlugin({
         try {
           const p = params as any;
           await agentGuideGenerator(pickWs(), p.agent_name, p.instructions, p.append ?? false);
-          return '✅ 指南已更新';
+          return '指南已更新';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -211,17 +231,20 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_start',
       label: 'pipeline_start',
-      description: '启动管道：加载模板 → 自动初始化工作区 → 依次执行阶段至第一个 checkpoint → 返回子 Agent 产出。Orchestrator 收到产出后展示给用户，等待用户输入"agree"或修改意见。',
+      description: '启动接力管道：初始化工作区，调度第一位专家与用户开始对话。用户在对话中打磨内容，说"下一阶段"推进到下一位专家。',
       parameters: Type.Object({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
         user_id: Type.String({ description: '用户 ID' }),
         project_id: Type.String({ description: '项目 ID' }),
-        workspace_root: Type.Optional(Type.String({ description: '工作区根目录（可选，默认使用 ~/.openclaw/workspaces/multi-agent-pipeline）' })),
+        initial_message: Type.Optional(Type.String({ description: '用户初始需求消息（可选，提供后自动开始与第一位专家对话）' })),
       }),
       async execute(params, _config, ctx) {
         try {
           const p = params as any;
-          const result = await pipelineStart(p.template_name, p.user_id, p.project_id, p.workspace_root || pickWs(), ctx.api);
+          const result = await pipelineStart(
+            p.template_name, p.user_id, p.project_id,
+            p.initial_message || '', pickWs(), ctx.api
+          );
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -232,16 +255,16 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_continue',
       label: 'pipeline_continue',
-      description: '继续管道：feedback="agree" → 推进到下一阶段执行至下一个 checkpoint；其他 feedback → 路由给当前子 Agent 修改。新产出在 slot_output.value 中，Orchestrator 需展示给用户。',
+      description: '接力模式核心工具：将用户消息路由给当前阶段专家对话，若用户说"下一阶段"等关键词则推进。用户与专家反复打磨，直到满意后推进。',
       parameters: Type.Object({
         user_id: Type.String({ description: '用户 ID' }),
         project_id: Type.String({ description: '项目 ID' }),
-        feedback: Type.String({ description: '用户反馈（"agree"继续，或提供修改意见）' }),
+        message: Type.String({ description: '用户消息（对话内容或"下一阶段"推进指令）' }),
       }),
       async execute(params, _config, ctx) {
         try {
           const p = params as any;
-          const result = await pipelineContinue(p.user_id, p.project_id, p.feedback, pickWs(), ctx.api);
+          const result = await pipelineContinue(p.user_id, p.project_id, p.message, pickWs(), ctx.api);
           return result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;

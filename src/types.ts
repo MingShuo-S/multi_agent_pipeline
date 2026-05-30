@@ -1,8 +1,18 @@
 // src/types.ts - 核心数据类型定义
 
+export type PipelineMode = 'relay' | 'pipeline';
+
 export interface TemplateSlot {
   type: 'text' | 'json' | 'file';
   default: string | object;
+}
+
+export interface PlatformRule {
+  platform: string;
+  ai_label_required: boolean;
+  forbidden_automation: boolean;
+  sensitive_words: string[];
+  content_rules: string;
 }
 
 export interface PipelineStage {
@@ -11,6 +21,8 @@ export interface PipelineStage {
   checkpoint: boolean;
   allow_read: string[];
   allow_write: string[];
+  auto_advance?: boolean;
+  description?: string;
 }
 
 export interface Template {
@@ -18,20 +30,44 @@ export interface Template {
   description: string;
   stages: PipelineStage[];
   slots: Record<string, TemplateSlot>;
+  mode?: PipelineMode;
+  platforms?: PlatformRule[];
+  author_label?: string;
 }
 
 export interface PipelineRemark {
   agent: string;
   content: string;
   timestamp: string;
+  version: number;
+}
+
+export interface SlotHistoryEntry {
+  content: string | object;
+  written_at: string;
+  version: number;
+  agent: string;
+}
+
+export interface StageHistoryEntry {
+  stage: number;
+  stage_id: string;
+  agent: string;
+  started_at: string;
+  completed_at?: string;
+  versions: number;
 }
 
 export interface PipelineState {
   template_name: string;
   current_stage: number;
   slot_values: Record<string, string | object>;
+  slot_history: Record<string, SlotHistoryEntry[]>;
   remarks: PipelineRemark[];
+  stage_history: StageHistoryEntry[];
   status: 'running' | 'paused' | 'completed' | 'failed';
+  mode: PipelineMode;
+  author?: string;
 }
 
 export interface AgentProfile {

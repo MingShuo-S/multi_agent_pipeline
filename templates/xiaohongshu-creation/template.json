@@ -1,13 +1,13 @@
 {
   "name": "xiaohongshu-creation",
-  "version": "1.0",
-  "description": "小红书内容创作八步闭环（人机协作版）",
+  "version": "2.0",
+  "description": "小红书内容创作接力（部虾创 relay 模式）",
   "agents": [
-    { "id": "topic-researcher", "description": "选题专家", "memory": false },
-    { "id": "web-researcher", "description": "调研专家", "memory": false },
-    { "id": "content-writer", "description": "写作专家", "memory": true },
-    { "id": "quality-reviewer", "description": "审核专家", "memory": false },
-    { "id": "publisher", "description": "发布专家", "memory": false }
+    { "id": "topic-researcher", "description": "选题专家，与用户对话确定选题", "memory": false },
+    { "id": "web-researcher", "description": "调研专家，验证数据收集素材", "memory": false },
+    { "id": "content-writer", "description": "写作专家，基于风格档案创作", "memory": true },
+    { "id": "quality-reviewer", "description": "审核专家，事实核查+平台规则检查", "memory": false },
+    { "id": "publisher", "description": "发布专家，标题优化+标签生成", "memory": false }
   ],
   "stages": [
     {
@@ -16,7 +16,7 @@
       "read_slots": ["topic_input"],
       "write_slot": "topic_output",
       "human_checkpoint": true,
-      "description": "选题：生成差异化选题"
+      "description": "选题对话：与用户讨论确定选题方向"
     },
     {
       "name": "research",
@@ -24,7 +24,7 @@
       "read_slots": ["topic_output"],
       "write_slot": "research_output",
       "human_checkpoint": true,
-      "description": "调研：全网竞品分析"
+      "description": "调研验证：收集数据、验证事实"
     },
     {
       "name": "writing",
@@ -32,7 +32,7 @@
       "read_slots": ["topic_output", "research_output", "outline_input"],
       "write_slot": "draft_output",
       "human_checkpoint": true,
-      "description": "写作：基于大纲和风格档案生成正文",
+      "description": "写作打磨：基于大纲和风格生成正文",
       "memory": true
     },
     {
@@ -41,7 +41,7 @@
       "read_slots": ["draft_output", "topic_output", "research_output"],
       "write_slot": "review_output",
       "human_checkpoint": true,
-      "description": "审核：联网事实核查 + 撞车检测"
+      "description": "质量审核：事实核查+撞车检测+平台规则"
     },
     {
       "name": "publish",
@@ -49,12 +49,13 @@
       "read_slots": ["draft_output", "review_output"],
       "write_slot": "publish_output",
       "human_checkpoint": true,
-      "description": "发布：标题优化 + 标签生成"
+      "description": "发布：标题优化+标签生成+多平台格式化"
     }
   ],
   "flow": {
-    "type": "linear",
+    "type": "relay",
     "default": ["topic", "research", "writing", "review", "publish"],
+    "advance_keywords": ["下一阶段", "advance", "完成", "过", "继续"],
     "rollback": "orchestrator"
   }
 }

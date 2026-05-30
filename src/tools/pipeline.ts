@@ -58,7 +58,7 @@ export async function pipelineWriteSlot(
     throw new Error(`Slot '${slotName}' not found in template`);
   }
 
-  await stateManager.updateSlot(slotName, content);
+  await stateManager.updateSlot(slotName, content, context.agent_name);
 }
 
 /**

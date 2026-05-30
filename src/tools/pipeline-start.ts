@@ -1,6 +1,6 @@
-// src/tools/pipeline-start.ts - 启动管道并执行到第一个 checkpoint
+// src/tools/pipeline-start.ts - 启动管道（relay 模式：初始化 + 首次对话）
 
-import { ToolContext, Template, PipelineState, callSubagent } from '../types.js';
+import { ToolContext, Template, PipelineState, PipelineStage, callSubagent, PipelineMode } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { initWorkspace } from './workspace-config.js';
@@ -8,158 +8,296 @@ import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { WORKSPACE_ROOT } from '../config.js';
 
-export interface CheckpointResult {
-  status: 'checkpoint_reached' | 'completed' | 'error';
+export interface PipelineStartResult {
+  status: 'initialized' | 'checkpoint_reached' | 'completed' | 'error';
+  mode: PipelineMode;
   current_stage: number;
   current_stage_name: string;
-  checkpoint: boolean;
+  current_agent: string;
+  stage_description?: string;
+  total_stages: number;
+  stages: Array<{ name: string; agent: string; checkpoint: boolean; completed: boolean }>;
   slot_output?: {
     slot_name: string;
     value: string | object;
     owner?: string;
-    written_at?: string;
+    version: number;
   };
-  previous_remarks?: any[];
   message: string;
   error?: string;
+  status_panel?: {
+    template: string;
+    author?: string;
+    completed_stages: number;
+    stages: Array<{
+      id: string;
+      agent: string;
+      status: 'current' | 'completed' | 'pending';
+      checkpoint: boolean;
+    }>;
+    slots: Record<string, { value: string | object; versions: number }>;
+  };
+}
+
+function buildStatusPanel(state: PipelineState, template: Template, currentStage: number): PipelineStartResult['status_panel'] {
+  return {
+    template: template.name,
+    author: state.author,
+    completed_stages: state.stage_history.filter(s => s.completed_at).length,
+    stages: template.stages.map((s, i) => ({
+      id: s.id,
+      agent: s.agent,
+      status: i < currentStage ? 'completed' : i === currentStage ? 'current' : 'pending',
+      checkpoint: s.checkpoint,
+    })),
+    slots: Object.fromEntries(
+      Object.entries(state.slot_values).map(([k, v]) => [
+        k,
+        { value: v, versions: (state.slot_history[k] || []).length },
+      ])
+    ),
+  };
 }
 
 /**
- * 执行管道直到遇到 checkpoint 或完成
+ * 执行 relay 模式：路由消息给当前阶段 Agent 并返回响应
  */
-export async function executeUntilCheckpoint(
-  workspaceRoot: string,
+async function executeRelayDialogue(
+  stateManager: StateManager,
+  state: PipelineState,
+  template: Template,
   userId: string,
   projectId: string,
-  templateName: string,
-  skipFirstStage = false,
+  workspaceRoot: string,
+  message: string,
   api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
-): Promise<CheckpointResult> {
-  try {
-    const stateManager = new StateManager(workspaceRoot, userId, projectId);
-    const configManager = new WorkspaceConfigManager(workspaceRoot);
+): Promise<{ response: string; slotName: string }> {
+  const currentStage = template.stages[state.current_stage];
+  if (!currentStage) {
+    throw new Error(`阶段 ${state.current_stage} 不存在`);
+  }
+
+  const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
+  const memoryManager = new MemoryManager(workspaceRoot, userId, currentStage.agent);
+  const profile = await memoryManager.getProfile();
+
+  const prompt = await promptBuilder.buildPipelinePrompt(
+    currentStage.agent, template, state, profile, message
+  );
+
+  const sessionKey = `${currentStage.agent}:${userId}:${projectId}`;
+  const agentResponse = await callSubagent(api, sessionKey, prompt);
+
+  const slotName = currentStage.allow_write[0];
+  if (slotName) {
+    await stateManager.updateSlot(slotName, agentResponse, currentStage.agent);
+  }
+
+  return { response: agentResponse, slotName };
+}
+
+/**
+ * 执行 relay 模式自动推进（跳过不需要 checkpoints 的阶段）
+ */
+async function autoAdvanceNonCheckpointStages(
+  stateManager: StateManager,
+  template: Template,
+  state: PipelineState,
+  userId: string,
+  projectId: string,
+  workspaceRoot: string,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
+): Promise<PipelineState> {
+  let nextStage = state.current_stage;
+  while (nextStage < template.stages.length) {
+    const stage = template.stages[nextStage];
+    // 如果是 checkpoint 阶段，停止
+    if (stage.checkpoint) break;
+    // 如果不是 checkpoint，自动执行
     const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
+    const prompt = await promptBuilder.buildPipelinePrompt(
+      stage.agent, template, state, {} as any, "请根据已有信息完成你的工作"
+    );
+    const sessionKey = `${stage.agent}:${userId}:${projectId}`;
+    const agentResponse = await callSubagent(api, sessionKey, prompt);
+    const slotName = stage.allow_write[0];
+    if (slotName) {
+      await stateManager.updateSlot(slotName, agentResponse, stage.agent);
+    }
+    // 完成当前阶段
+    const currentEntry = state.stage_history.find(h => h.stage === nextStage && !h.completed_at);
+    if (currentEntry) currentEntry.completed_at = new Date().toISOString();
+    nextStage++;
+  }
+  state.current_stage = nextStage;
+  // 如果推进到了新阶段，记录开始
+  if (nextStage < template.stages.length) {
+    state.stage_history.push({
+      stage: nextStage,
+      stage_id: template.stages[nextStage].id,
+      agent: template.stages[nextStage].agent,
+      started_at: new Date().toISOString(),
+      versions: 0,
+    });
+  }
+  await stateManager.save(state);
+  return state;
+}
 
-    // 加载模板
-    let template: Template;
-    let state: PipelineState;
-
-    // 如果是第一次调用，初始化 state
-    const stateExists = await stateExists_check(stateManager);
-    if (!stateExists) {
-      template = await loadTemplateWithAutoInit(configManager, workspaceRoot, templateName);
-      state = await stateManager.initialize(template);
-    } else {
-      state = await stateManager.load();
-      template = await loadTemplateWithAutoInit(configManager, workspaceRoot, state.template_name);
+/**
+ * pipeline_start - relay 模式：初始化项目并开始与第一个专家对话
+ */
+export async function pipelineStart(
+  templateName: string,
+  userId: string,
+  projectId: string,
+  initialMessage: string,
+  workspaceRoot: string,
+  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
+): Promise<PipelineStartResult> {
+  try {
+    if (!templateName) {
+      return { status: 'error', mode: 'relay', current_stage: -1, current_stage_name: '错误', current_agent: '', total_stages: 0, stages: [], message: '缺少 template_name', error: 'template_name is required' };
+    }
+    if (!userId) {
+      return { status: 'error', mode: 'relay', current_stage: -1, current_stage_name: '错误', current_agent: '', total_stages: 0, stages: [], message: '缺少 user_id', error: 'user_id is required' };
+    }
+    if (!projectId) {
+      return { status: 'error', mode: 'relay', current_stage: -1, current_stage_name: '错误', current_agent: '', total_stages: 0, stages: [], message: '缺少 project_id', error: 'project_id is required' };
     }
 
-    let startStage = skipFirstStage ? state.current_stage + 1 : state.current_stage;
+    const root = workspaceRoot || WORKSPACE_ROOT;
+    const stateManager = new StateManager(root, userId, projectId);
+    const configManager = new WorkspaceConfigManager(root);
 
-    // 循环执行阶段直到 checkpoint
-    while (startStage < template.stages.length && state.status === 'running') {
-      const stage = template.stages[startStage];
+    let template: Template;
+    try {
+      template = await configManager.readTemplate(templateName);
+    } catch {
+      await initWorkspace(root);
+      template = await configManager.readTemplate(templateName);
+    }
 
-      // 构建 Agent Prompt
-      const stageMemory = new MemoryManager(workspaceRoot, userId, stage.agent);
-      const profile = await stageMemory.getProfile();
-      const prompt = await promptBuilder.buildPipelinePrompt(stage.agent, template, state, profile);
+    const mode = template.mode || 'relay';
 
-      // 调用真实 Agent（复合 sessionKey 隔离项目会话）
-      const sessionKey = `${stage.agent}:${userId}:${projectId}`;
-      const agentOutput = await callSubagent(api, sessionKey, prompt);
-      
-      if (stage.allow_write.length > 0) {
-        const slotName = stage.allow_write[0];
-        state.slot_values[slotName] = agentOutput;
-      }
-
-      state.current_stage = startStage;
-      await stateManager.save(state);
-
-      // 如果是 checkpoint，立即暂停
-      if (stage.checkpoint) {
-        const slotName = stage.allow_write[0];
-        const slotValue = state.slot_values[slotName];
-
-        const contentText = typeof slotValue === 'string' ? slotValue : JSON.stringify(slotValue, null, 2);
+    // 检查是否已有运行中的项目
+    let state: PipelineState;
+    try {
+      state = await stateManager.load();
+      if (state.status === 'running') {
+        const currentStage = state.current_stage < template.stages.length
+          ? template.stages[state.current_stage]
+          : null;
         return {
-          status: 'checkpoint_reached',
-          current_stage: startStage,
-          current_stage_name: stage.id,
-          checkpoint: true,
-          slot_output: {
-            slot_name: slotName,
-            value: slotValue,
-            owner: stage.agent,
-            written_at: new Date().toISOString(),
-          },
-          message: `${contentText}\n\n---\n输入"agree"继续，或直接说修改意见。`,
+          status: 'initialized',
+          mode: state.mode,
+          current_stage: state.current_stage,
+          current_stage_name: currentStage?.id || '完成',
+          current_agent: currentStage?.agent || '',
+          stage_description: currentStage?.description,
+          total_stages: template.stages.length,
+          stages: template.stages.map((s, i) => ({
+            name: s.id,
+            agent: s.agent,
+            checkpoint: s.checkpoint,
+            completed: i < state.current_stage,
+          })),
+          message: `项目已存在，当前在第 ${state.current_stage + 1}/${template.stages.length} 阶段，专家 [${currentStage?.agent}] 正在待命。请继续对话。`,
+          status_panel: buildStatusPanel(state, template, state.current_stage),
         };
       }
-
-      // 否则推进到下一阶段
-      startStage++;
+    } catch {
+      // 状态文件不存在，初始化
     }
 
-    // 所有阶段完成
-    state.status = 'completed';
-    await stateManager.save(state);
+    // 初始化
+    state = await stateManager.initialize(template, mode);
+
+    // 自动推进不需要 checkpoints 的阶段
+    state = await autoAdvanceNonCheckpointStages(stateManager, template, state, userId, projectId, root, api);
+
+    // 获取当前阶段
+    if (state.current_stage >= template.stages.length) {
+      state.status = 'completed';
+      await stateManager.save(state);
+      return {
+        status: 'completed',
+        mode,
+        current_stage: state.current_stage,
+        current_stage_name: '完成',
+        current_agent: '',
+        total_stages: template.stages.length,
+        stages: template.stages.map(s => ({ name: s.id, agent: s.agent, checkpoint: s.checkpoint, completed: true })),
+        message: '所有阶段已完成！',
+        status_panel: buildStatusPanel(state, template, state.current_stage),
+      };
+    }
+
+    const currentStage = template.stages[state.current_stage];
+    const stagesSummary = template.stages.map((s, i) => ({
+      name: s.id,
+      agent: s.agent,
+      checkpoint: s.checkpoint,
+      completed: i < state.current_stage,
+    }));
+
+    // 如果有初始消息，路由给第一个 Agent
+    if (initialMessage) {
+      const { response, slotName } = await executeRelayDialogue(
+        stateManager, state, template, userId, projectId, root, initialMessage, api
+      );
+
+      return {
+        status: 'checkpoint_reached',
+        mode,
+        current_stage: state.current_stage,
+        current_stage_name: currentStage.id,
+        current_agent: currentStage.agent,
+        stage_description: currentStage.description,
+        total_stages: template.stages.length,
+        stages: stagesSummary,
+        slot_output: {
+          slot_name: slotName,
+          value: response,
+          owner: currentStage.agent,
+          version: (state.slot_history[slotName]?.length || 1) - 1,
+        },
+        message: `${response}\n\n---\n💬 继续与 [${currentStage.agent}] 对话，或输入 "下一阶段" 推进。`,
+        status_panel: buildStatusPanel(state, template, state.current_stage),
+      };
+    }
 
     return {
-      status: 'completed',
-      current_stage: state.current_stage,
-      current_stage_name: '完成',
-      checkpoint: false,
-      message: '✨ 管道已完成所有阶段！',
+      status: 'initialized',
+      mode,
+      current_stage: 0,
+      current_stage_name: currentStage.id,
+      current_agent: currentStage.agent,
+      stage_description: currentStage.description,
+      total_stages: template.stages.length,
+      stages: stagesSummary,
+      message: `项目已启动（${mode === 'relay' ? '接力' : '管道'}模式）！第 1/${template.stages.length} 阶段：由 [${currentStage.agent}] 为您服务。请告诉我你的需求。`,
+      status_panel: buildStatusPanel(state, template, state.current_stage),
     };
   } catch (err) {
     return {
       status: 'error',
+      mode: 'relay',
       current_stage: -1,
       current_stage_name: '错误',
-      checkpoint: false,
-      message: `❌ 执行出错: ${String(err)}`,
+      current_agent: '',
+      total_stages: 0,
+      stages: [],
+      message: `执行出错: ${String(err)}`,
       error: String(err),
     };
   }
 }
 
-/**
- * 加载模板，如果不存在则自动初始化工作区并重试
- */
-async function loadTemplateWithAutoInit(
-  configManager: WorkspaceConfigManager,
-  workspaceRoot: string,
-  templateName: string
-): Promise<Template> {
-  try {
-    return await configManager.readTemplate(templateName);
-  } catch {
-    await initWorkspace(workspaceRoot);
-    return await configManager.readTemplate(templateName);
-  }
-}
-
-/**
- * 检查 state.json 是否已存在
- */
-async function stateExists_check(stateManager: StateManager): Promise<boolean> {
-  try {
-    await stateManager.load();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * pipeline_start 工具定义
- */
 export const pipelineStartTool = {
   id: 'pipeline_start',
   name: 'pipeline_start',
-  description: '启动管道项目，初始化状态文件，并执行所有非 checkpoint 阶段直到遇到第一个 checkpoint 或完成。返回当前产出给用户确认。',
+  description: '启动管道项目（接力模式）：初始化工作区，调度第一位专家与用户对话。',
   parameters: {
     type: 'object',
     properties: {
@@ -173,52 +311,13 @@ export const pipelineStartTool = {
       },
       project_id: {
         type: 'string',
-        description: '项目 ID（如 camping-post）',
+        description: '项目 ID（如 spring-travel）',
+      },
+      initial_message: {
+        type: 'string',
+        description: '用户的初始需求消息',
       },
     },
     required: ['template_name', 'user_id', 'project_id'],
   },
 };
-
-/**
- * pipeline_start 实现
- */
-export async function pipelineStart(
-  templateName: string,
-  userId: string,
-  projectId: string,
-  workspaceRoot: string,
-  api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
-): Promise<CheckpointResult> {
-  if (!templateName) {
-    return {
-      status: 'error',
-      current_stage: -1,
-      current_stage_name: '错误',
-      checkpoint: false,
-      message: '缺少必要参数 template_name，请指定模板名称（如 xiaohongshu-creation）。可用 workspace_config list_templates 查看所有模板。',
-      error: 'template_name is required but was not provided',
-    };
-  }
-  if (!userId) {
-    return {
-      status: 'error',
-      current_stage: -1,
-      current_stage_name: '错误',
-      checkpoint: false,
-      message: '缺少必要参数 user_id',
-      error: 'user_id is required',
-    };
-  }
-  if (!projectId) {
-    return {
-      status: 'error',
-      current_stage: -1,
-      current_stage_name: '错误',
-      checkpoint: false,
-      message: '缺少必要参数 project_id',
-      error: 'project_id is required',
-    };
-  }
-  return executeUntilCheckpoint(workspaceRoot || WORKSPACE_ROOT, userId, projectId, templateName, false, api);
-}

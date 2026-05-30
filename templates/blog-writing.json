@@ -1,27 +1,32 @@
 {
   "name": "blog-writing",
   "description": "博客文章创作流水线：调研 → 写作 → 审核",
+  "mode": "relay",
+  "author_label": "本文由 [用户] 与部虾创专家团联合创作",
   "stages": [
     {
       "id": "research",
       "agent": "web-researcher",
       "checkpoint": true,
       "allow_read": ["topic"],
-      "allow_write": ["research_data"]
+      "allow_write": ["research_data"],
+      "description": "调研：收集相关素材和数据"
     },
     {
       "id": "writing",
       "agent": "content-writer",
       "checkpoint": true,
       "allow_read": ["topic", "research_data"],
-      "allow_write": ["draft"]
+      "allow_write": ["draft"],
+      "description": "写作：生成博客正文"
     },
     {
       "id": "review",
       "agent": "quality-reviewer",
       "checkpoint": true,
       "allow_read": ["topic", "draft"],
-      "allow_write": ["final_post"]
+      "allow_write": ["final_post"],
+      "description": "审核：文章质量检查"
     }
   ],
   "slots": {
