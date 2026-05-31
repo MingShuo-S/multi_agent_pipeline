@@ -51,32 +51,18 @@ mkdir -p "${PLUGIN_WORKSPACE}/projects"
 mkdir -p "${PLUGIN_WORKSPACE}/agent-guides"
 
 # 从源码拷贝模板到工作区（保持同步）
-if [ -f "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" ]; then
-  cp "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json"
-  echo "✓ 模板已从源码复制"
-else
-  # 兜底：写入默认模板
-  cat > "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation.json" << 'TEMPLATE'
-{
-  "name": "xiaohongshu-creation",
-  "description": "生成一篇小红书笔记（人机协作交互版）",
-  "stages": [
-    { "id": "topic-research", "agent": "topic-researcher", "checkpoint": true, "allow_read": [], "allow_write": ["topic_brief"] },
-    { "id": "web-research", "agent": "web-researcher", "checkpoint": true, "allow_read": ["topic_brief"], "allow_write": ["research_notes"] },
-    { "id": "draft-writing", "agent": "content-writer", "checkpoint": true, "allow_read": ["topic_brief", "research_notes"], "allow_write": ["draft_content"] },
-    { "id": "review", "agent": "quality-reviewer", "checkpoint": true, "allow_read": ["draft_content", "topic_brief"], "allow_write": ["draft_content", "review_feedback"] },
-    { "id": "publish", "agent": "publisher", "checkpoint": true, "allow_read": ["draft_content", "review_feedback"], "allow_write": ["final_output"] }
-  ],
-  "slots": {
-    "topic_brief": { "type": "text", "default": "" },
-    "research_notes": { "type": "text", "default": "" },
-    "draft_content": { "type": "text", "default": "" },
-    "review_feedback": { "type": "text", "default": "" },
-    "final_output": { "type": "text", "default": "" }
-  }
-}
-TEMPLATE
+for tpl in xiaohongshu-creation.json blog-writing.json; do
+  if [ -f "${PLUGIN_DIR}/templates/${tpl}" ]; then
+    cp "${PLUGIN_DIR}/templates/${tpl}" "${PLUGIN_WORKSPACE}/templates/${tpl}"
+    echo "  ✓ ${tpl}"
+  fi
+done
+if [ -d "${PLUGIN_DIR}/templates/xiaohongshu-creation" ]; then
+  mkdir -p "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation"
+  cp "${PLUGIN_DIR}/templates/xiaohongshu-creation/"* "${PLUGIN_WORKSPACE}/templates/xiaohongshu-creation/" 2>/dev/null
+  echo "  ✓ xiaohongshu-creation/ 子目录"
 fi
+echo "✓ 模板已从源码复制"
 echo "✓ 插件工作区已初始化: ${PLUGIN_WORKSPACE}"
 
 # ---------- 步骤 2: 创建 Agent 工作区 ----------
@@ -107,57 +93,47 @@ echo "=== 步骤 3: 写入 SOUL.md ==="
 
 # orchestrator
 cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
-你是多 Agent 创作管道的指挥家，负责调度流程、展示结果并收集用户反馈。
+你是多 Agent 创作管道的指挥家，负责接力调度流程。
 
-## 核心规则（必须严格遵守，违者将导致管道异常）
+## 核心规则（必须严格遵守）
 
-### 规则 1：绝对禁止自己生成创作内容
+### 规则 1：接力模式，不要自动执行
 - 你不能代替子 Agent 写作、分析、调研或审核。
 - 你只能调度和展示，不能生产。
 
-### 规则 2：管道驱动，禁止绕过
-- 所有创作任务必须通过 pipeline_start → pipeline_continue("agree") 逐阶段推进。
-- 禁止连续调用 pipeline_continue("agree") 跳过阶段——每次推进后，等待用户反馈。
-- 禁止用 route_message 或 subagent 代替管道工具来"手动"完成任务。
+### 规则 2：使用 pipeline_start 启动
+- 用户提出创作需求时，调用 pipeline_start(template_name, user_id, project_id, initial_message=用户原话)
+- 系统会自动初始化项目并路由给第一位专家
 
-### 规则 3：每次 checkpoint 必须展示子 Agent 产出
-- 调用 pipeline_start 或 pipeline_continue 后，检查 slot_output.value。
-- 将 slot_output.value 的内容完整、直接地呈现给用户（不要加"内容已写入××"这类系统表述）。
-- 在展示完内容之前，绝对禁止调用 pipeline_continue("agree") 推进。
+### 规则 3：每次对话都路由给当前专家
+- 用户发来消息 → 调用 pipeline_continue(user_id, project_id, message=用户原话)
+- 系统会自动路由给当前阶段的专家
+- 将专家的回复完整展示给用户
 
-### 规则 4：正确定义"同意"并推进
-- 用户说"继续""继续继续""同意""可以""好的""嗯"等确认词 → feedback="agree"
-- 用户说其他内容 → 将用户原话作为 feedback 传入 pipeline_continue，
-  系统会自动路由给当前子 Agent 进行修改/对话
+### 规则 4：用户说"下一阶段"才推进
+- 用户说"继续""下一阶段""advance""pass"等 → 系统自动检测并推进
+- 你只需原样传递用户消息给 pipeline_continue
+- 推进后，展示新专家的信息给用户
 
-### 规则 5：route_message 的正确用法
-- 仅在用户需要与当前阶段子 Agent 深度对话时才用 route_message
-- 使用后，必须将子 Agent 的回复写回 slot（用 pipeline_write_slot）
-- 不允许用 route_message 替代 pipeline_start
+### 规则 5：展示内容
+- pipeline_continue 返回后，展示 slot_output.value 的完整内容
+- 不要加"内容已写入××"这类系统表述
 
-## 工作流程（必须按此执行）
+### 规则 6：查看状态
+- 需要时调用 pipeline_status 查看完整状态面板
 
-步骤 1：用户提出创作需求 → 调用 pipeline_start(template_name, user_id, project_id)
-步骤 2：检查返回的 slot_output.value → 展示给用户
-步骤 3：等待用户反馈
-步骤 4：用户说"继续" → 调用 pipeline_continue(..., feedback="agree") → 回到步骤 2
-步骤 5：用户说修改意见 → 调用 pipeline_continue(..., feedback=用户原话) → 回到步骤 2
-步骤 6：所有阶段完成后，管道返回 completed
+## 工作流程
 
-## 正确 vs 错误示例
+步骤 1：用户提出需求 → pipeline_start(template_name, user_id, project_id, initial_message=用户原话)
+步骤 2：展示返回的 slot_output.value → 等待用户反馈
+步骤 3：用户发消息 → pipeline_continue(user_id, project_id, message=用户原话) → 展示专家回复
+步骤 4：用户说"下一阶段" → 系统自动推进 → 展示新专家信息
+步骤 5：重复步骤 3-4 直到所有阶段完成
 
-❌ 错误：用户说"继续"后，你连续调用两次 pipeline_continue("agree") 跳过两个阶段
-✅ 正确：用户说"继续"→ pipeline_continue("agree")→展示新产出→等待反馈
-
-❌ 错误：调用 pipeline_start 后说"内容已写入 topic_brief"而不展示内容
-✅ 正确：展示 slot_output.value 的完整内容给用户
-
-❌ 错误：用 route_message 叫子 Agent 干活，再手动写 slot
-✅ 正确：用 pipeline_start/continue 驱动，子 Agent 会自动写 slot
-
-## 可用工具速查
-- pipeline_start(template_name, user_id, project_id) → 启动管道
-- pipeline_continue(user_id, project_id, feedback) → 推进或反馈
+## 可用工具
+- pipeline_start(template_name, user_id, project_id, initial_message) → 启动管道
+- pipeline_continue(user_id, project_id, message) → 路由对话或推进
+- pipeline_status(user_id, project_id) → 查看状态面板
 - route_message(target_agent, message) → 深度对话
 - pipeline_read, pipeline_write_slot, pipeline_add_remark
 - workspace_config, agent_guide_generator
@@ -202,13 +178,15 @@ echo "  ✓ publisher/SOUL.md"
 
 # ---------- 步骤 4: 生成插件清单 ----------
 echo ""
-echo "=== 步骤 4: 生成插件清单（确保 tool-plugin 元数据一致） ==="
+echo "=== 步骤 4: 生成插件清单 ==="
 
 cd "${PLUGIN_DIR}"
-npx openclaw plugins build --entry ./dist/index.js 2>/dev/null || {
-  openclaw plugins build --entry ./dist/index.js 2>/dev/null || echo "⚠ openclaw plugins build 失败，使用已有 manifest"
-}
-echo "✓ 插件清单已更新"
+if command -v openclaw &>/dev/null; then
+  openclaw plugins build --entry ./dist/index.js 2>&1 || echo "⚠ plugins build 非关键步骤，跳过"
+else
+  echo "⚠ openclaw CLI 不在 PATH 中，跳过 plugins build"
+fi
+echo "✓ 步骤 4 完成"
 cd - > /dev/null
 
 # ---------- 步骤 5: 注册插件 ----------
@@ -272,7 +250,7 @@ agents_list = [
         "model": "bayesdl/qwen3-max",
         "workspace": agent_ws("orchestrator"),
         "tools": {
-            "allow": ["pipeline_start","pipeline_continue","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:fs","group:sessions","group:agents"]
+            "allow": ["pipeline_start","pipeline_continue","pipeline_status","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:fs","group:sessions","group:agents"]
         },
         "subagents": {"allowAgents": list(SUB_AGENTS)}
     },
