@@ -255,7 +255,7 @@ SUB_AGENTS = ["topic-researcher","web-researcher","content-writer","quality-revi
 def agent_ws(name):
     return os.path.join(ws_root, name)
 def sub_tools(extra=None):
-    base = ["group:fs","group:web","pipeline_read","pipeline_write_slot","pipeline_add_remark","style_get_profile","style_record_feedback"]
+    base = ["group:plugins","group:fs","group:web"]
     return {"allow": base + (extra or [])}
 agents_list = [
     {"id": "main"},
@@ -264,7 +264,7 @@ agents_list = [
         "model": "bayesdl/qwen3-max",
         "workspace": agent_ws("orchestrator"),
         "tools": {
-            "allow": ["pipeline_start","pipeline_continue","pipeline_status","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:sessions","group:agents"]
+            "allow": ["group:plugins","group:sessions","group:agents"]
         },
         "subagents": {"allowAgents": list(SUB_AGENTS)}
     },
