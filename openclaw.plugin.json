@@ -59,10 +59,10 @@
       "description": "为指定 Agent 生成或更新管道协作指南"
     },
     "pipeline_start": {
-      "description": "启动接力管道：初始化工作区，调度第一位专家与用户对话"
+      "description": "[仅限新项目] 启动全新接力管道。如管道已在运行请勿重复调用，改用 pipeline_continue。"
     },
     "pipeline_continue": {
-      "description": "接力核心：路由消息给当前专家对话，或检测推进信号切换阶段"
+      "description": "[管道运行中唯一入口] 处理所有用户消息：检测"下一阶段"等推进关键词则自动切换阶段，否则路由给当前专家对话。"
     }
   },
   "activation": {

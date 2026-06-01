@@ -231,7 +231,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_start',
       label: 'pipeline_start',
-      description: '启动接力管道：初始化工作区，调度第一位专家与用户开始对话。用户在对话中打磨内容，说"下一阶段"推进到下一位专家。',
+      description: '[仅限新项目] 启动全新的接力管道。只应在没有任何正在运行的项目时调用。如果管道已在运行（用户已收到第一位专家的消息），必须使用 pipeline_continue，不要重复调用此工具。',
       parameters: Type.Object({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
         user_id: Type.String({ description: '用户 ID' }),
@@ -255,7 +255,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_continue',
       label: 'pipeline_continue',
-      description: '接力模式核心工具：将用户消息路由给当前阶段专家对话，若用户说"下一阶段"等关键词则推进。用户与专家反复打磨，直到满意后推进。',
+      description: '[管道运行中唯一入口] 处理管道运行中所有用户消息。用户说"下一阶段"、"完成"、"继续"等推进关键词时自动推进到下一专家阶段；否则将消息路由给当前阶段专家继续对话。管道启动后必须始终使用此工具，不要调用 pipeline_start。',
       parameters: Type.Object({
         user_id: Type.String({ description: '用户 ID' }),
         project_id: Type.String({ description: '项目 ID' }),

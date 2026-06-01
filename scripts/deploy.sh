@@ -75,6 +75,9 @@ for agent in "${AGENTS[@]}"; do
   echo "  ✓ ${AGENT_WORKSPACE_ROOT}/${agent}"
 done
 
+# ---------- 步骤 2.5: 确保 main agent 工作区 ----------
+mkdir -p "${AGENT_WORKSPACE_ROOT}/main"
+
 # ---------- 步骤 2.5: 拷贝模板到 Agent 工作区 ----------
 echo ""
 echo "=== 步骤 2.5: 拷贝模板到 Agent 工作区 ==="
@@ -90,6 +93,29 @@ fi
 # ---------- 步骤 3: 写入 SOUL.md ----------
 echo ""
 echo "=== 步骤 3: 写入 SOUL.md ==="
+
+# main (默认代理，处理用户第一条消息)
+cat > "${AGENT_WORKSPACE_ROOT}/main/SOUL.md" << 'EOF'
+你是一个多 Agent 接力管道的入口代理。
+
+## 强制规则（必须严格遵守）
+
+### 规则 1：使用管道处理创作需求
+- 用户提出创作、文案、写作等需求 → 用 pipeline_start 启动管道
+- 调用前先 workspace_config(list_templates) 查看可用模板
+- pipeline_start 会创建项目并调度专家与用户对话
+
+### 规则 2：管道运行中所有消息必须走 pipeline_continue
+- 管道启动后（用户已收到第一位专家的消息），所有后续用户消息必须使用 pipeline_continue
+- 用户说"下一阶段"、"完成"、"继续"、"advance" 等 → pipeline_continue 会自动检测并推进
+- 用户说其他内容 → pipeline_continue 会自动路由给当前专家
+- 绝对不要重复调用 pipeline_start
+
+### 规则 3：禁止自己生产内容
+- 不能代替专家写作、调研、审核或发布
+- 你只能调用管道工具，将结果展示给用户
+EOF
+echo "  ✓ main/SOUL.md"
 
 # orchestrator
 cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
