@@ -246,6 +246,10 @@ if not bayesdl_key or bayesdl_key.startswith('sk-你的') or bayesdl_key == '${B
 # ---------- 全局 tools ----------
 cfg['tools'] = cfg.get('tools', {})
 cfg['tools'].update({"profile": "full", "sessions": {"visibility": "all"}})
+# ---------- 禁用设备认证（避免每次重启 browser device 需重新 approve） ----------
+cfg['gateway'] = cfg.get('gateway', {})
+cfg['gateway']['controlUi'] = cfg['gateway'].get('controlUi', {})
+cfg['gateway']['controlUi']['dangerouslyDisableDeviceAuth'] = True
 # ---------- 确保 plugins.load.paths 只有当前路径 ----------
 cur_plugin = (os.environ.get('PLUGIN_DIR') or '').strip()
 if cur_plugin:
