@@ -5,6 +5,15 @@ import path from 'path';
 import { Template } from '../types.js';
 import { SEED_TEMPLATES_DIR } from '../config.js';
 
+// 标准可用 Agent 名称（创建模板时只能使用这些）
+const KNOWN_AGENTS = [
+  'topic-researcher',
+  'web-researcher',
+  'content-writer',
+  'quality-reviewer',
+  'publisher',
+];
+
 export class WorkspaceConfigManager {
   constructor(private workspaceRoot: string) {}
 
@@ -39,6 +48,19 @@ export class WorkspaceConfigManager {
       // 校验 JSON 合法性
       const json = JSON.stringify(template, null, 2);
       JSON.parse(json);
+
+      // 校验 stages 中的 agent 名称
+      if (template.stages && Array.isArray(template.stages)) {
+        const invalidAgents = template.stages
+          .map(s => s.agent)
+          .filter(a => a && !KNOWN_AGENTS.includes(a));
+        if (invalidAgents.length > 0) {
+          throw new Error(
+            `模板包含无效的 agent 名称: ${invalidAgents.join(', ')}。` +
+            `可用 agent: ${KNOWN_AGENTS.join(', ')}`
+          );
+        }
+      }
 
       const dir = path.dirname(templatePath);
       await fs.mkdir(dir, { recursive: true });

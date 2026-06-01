@@ -27,10 +27,15 @@ export async function pipelineRead(
   );
 
   if (!(slotName in state.slot_values)) {
-    throw new Error(`Slot '${slotName}' not found`);
+    return `（Slot '${slotName}' 尚无内容，请先等待前面的 Agent 完成。）`;
   }
 
-  return state.slot_values[slotName];
+  const value = state.slot_values[slotName];
+  if (value === '' || value === null || value === undefined) {
+    return `（Slot '${slotName}' 当前为空，暂无可用内容。）`;
+  }
+
+  return value;
 }
 
 /**

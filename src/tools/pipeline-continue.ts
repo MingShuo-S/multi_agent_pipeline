@@ -48,7 +48,11 @@ function isAdvanceSignal(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   return ADVANCE_KEYWORDS.some(kw => {
     const kwLower = kw.toLowerCase();
-    return trimmed === kwLower || trimmed.startsWith(kwLower + ' ') || trimmed.endsWith(' ' + kwLower);
+    // 精确匹配、起始匹配（带空格）、结束匹配（带空格）、包含匹配（重复关键词如"下一阶段下一阶段"）
+    return trimmed === kwLower
+      || trimmed.startsWith(kwLower + ' ')
+      || trimmed.endsWith(' ' + kwLower)
+      || trimmed.includes(kwLower + kwLower);
   });
 }
 
