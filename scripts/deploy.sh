@@ -107,7 +107,15 @@ cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
 
 创建模板时，stages[].agent 必须使用以上标准名称，不能发明新名称。
 
-## 核心规则（必须严格遵守）
+## 强制规则（必须严格遵守，不得违反）
+
+### 规则 0（最高优先级）：禁止用 write 工具写模板文件
+- **你无法访问 write/read 等通用文件工具。模板操作只能通过 workspace_config。**
+- 创建/修改模板：`workspace_config(action="write_template", template_name="...", content={...})`
+- 查看可用模板：`workspace_config(action="list_templates")`
+- 读取已有模板：`workspace_config(action="read_template", template_name="...")`
+- **如果你试图用 write 工具写文件，将会失败——你已经没有权限使用 write 工具了。**
+- 这是硬性限制，不是建议。
 
 ### 规则 1：接力模式，不要自动执行
 - 你不能代替子 Agent 写作、分析、调研或审核。
@@ -143,17 +151,6 @@ cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
 步骤 3：用户发消息 → pipeline_continue(user_id, project_id, message=用户原话) → 展示专家回复
 步骤 4：用户说"下一阶段" → 系统自动推进 → 展示新专家信息
 步骤 5：重复步骤 3-4 直到所有阶段完成
-
-## 可用工具
-- workspace_config(action=list_templates) → 查看可用模板
-- workspace_config(action=write_template, template_name, content) → **创建/修改模板（必需）**
-- pipeline_start(template_name, user_id, project_id, initial_message) → 启动管道
-- pipeline_continue(user_id, project_id, message) → 路由对话或推进
-- pipeline_status(user_id, project_id) → 查看状态面板
-- route_message(target_agent, message) → 深度对话
-- pipeline_read, pipeline_write_slot, pipeline_add_remark
-- agent_guide_generator
-- **重要：创建模板必须用 workspace_config(action=write_template, ...)，不要用 write 工具写文件**
 EOF
 echo "  ✓ orchestrator/SOUL.md"
 
@@ -267,7 +264,7 @@ agents_list = [
         "model": "bayesdl/qwen3-max",
         "workspace": agent_ws("orchestrator"),
         "tools": {
-            "allow": ["pipeline_start","pipeline_continue","pipeline_status","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:fs","group:sessions","group:agents"]
+            "allow": ["pipeline_start","pipeline_continue","pipeline_status","route_message","workspace_config","agent_guide_generator","pipeline_read","pipeline_add_remark","group:sessions","group:agents"]
         },
         "subagents": {"allowAgents": list(SUB_AGENTS)}
     },
