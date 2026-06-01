@@ -2,7 +2,7 @@
 
 import { PipelineState, Template, callSubagent } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
-import { WorkspaceConfigManager } from './workspace-config.js';
+import { WorkspaceConfigManager, initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { WORKSPACE_ROOT } from '../config.js';
@@ -185,7 +185,13 @@ export async function pipelineContinue(
       };
     }
 
-    const template = await configManager.readTemplate(state.template_name);
+    let template: Template;
+    try {
+      template = await configManager.readTemplate(state.template_name);
+    } catch {
+      await initWorkspace(root);
+      template = await configManager.readTemplate(state.template_name);
+    }
 
     // 判断是否推进信号
     if (isAdvanceSignal(message)) {
