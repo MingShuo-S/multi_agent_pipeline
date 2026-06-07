@@ -11,6 +11,7 @@ import { pipelineContinue } from './tools/pipeline-continue.js';
 import { pipelineStatus } from './tools/pipeline-status.js';
 import { pipelineDisplay } from './tools/pipeline-display.js';
 import { styleReadProfile, styleWriteProfile, kbWrite, kbRead, styleExtractSignal, voiceprintInit, styleGetContext, voiceprintAnalyze, voiceprintCalibrate, voiceprintConfirm, voiceprintProceed, voiceprintReset } from './tools/style-system.js';
+import { sessionSearch, sessionSearchAll, freezeSnapshot, readSnapshot, writeSessionNote, readSessionNote, autoCompress } from './tools/session-memory.js';
 import { StateManager } from './runtime/state-manager.js';
 import { WORKSPACE_ROOT } from './config.js';
 import type { ToolContext, CorrectionSignal } from './types.js';
@@ -558,6 +559,130 @@ export default defineToolPlugin({
           const p = params as any;
           const result = await pipelineContinue(p.user_id, p.project_id, p.message, pickWs(), ctx.api);
           return result;
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    // ——— Hermes 记忆模式工具 ———
+
+    tool({
+      name: 'session_search',
+      label: 'session_search',
+      description: '跨 Slot 历史检索：搜索当前项目所有 slot 的历史版本。支持关键词、slot名、Agent、时间范围过滤。用于 Agent 回顾之前阶段的工作内容。',
+      parameters: Type.Object({
+        keyword: Type.Optional(Type.String({ description: '搜索关键词' })),
+        slot_name: Type.Optional(Type.String({ description: '按 slot 名称过滤' })),
+        agent: Type.Optional(Type.String({ description: '按 Agent 名称过滤' })),
+        from_time: Type.Optional(Type.String({ description: '起始时间 (ISO)' })),
+        to_time: Type.Optional(Type.String({ description: '结束时间 (ISO)' })),
+        limit: Type.Optional(Type.Number({ description: '最大返回条数', default: 20 })),
+        all_projects: Type.Optional(Type.Boolean({ description: '跨所有项目搜索', default: false })),
+      }),
+      async execute(params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const p = params as any;
+          const query = {
+            keyword: p.keyword,
+            slotName: p.slot_name,
+            agent: p.agent,
+            fromTime: p.from_time,
+            toTime: p.to_time,
+            limit: p.limit ?? 20,
+          };
+          const results = p.all_projects
+            ? await sessionSearchAll(c.workspace_root, c.user_id, query)
+            : await sessionSearch(c.workspace_root, c.user_id, c.project_id, query);
+          return results.length > 0
+            ? results.map(r => `[${r.writtenAt.slice(0, 10)}] ${r.slotName} (v${r.version}, ${r.agent}): ${typeof r.content === 'string' ? r.content.substring(0, 300) : JSON.stringify(r.content).substring(0, 300)}`).join('\n\n')
+            : '未找到匹配的历史记录';
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'snapshot_create',
+      label: 'snapshot_create',
+      description: '冻结当前 KB 状态为快照（写入 _shared/{userId}/memory/session-snapshot.md）。Agent 可在关键里程碑后手动调用，或 pipeline_start 在 session 启动时自动调用。快照在 session 内不更新，保护 LLM prefix cache。',
+      parameters: Type.Object({}),
+      async execute(_params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const snapshot = await freezeSnapshot(c.workspace_root, c.user_id, c.project_id);
+          return `快照已冻结于 ${snapshot.sessionStart}\n风格 DNA: ${snapshot.styleDna.substring(0, 100)}...\n洞察: ${snapshot.insights.substring(0, 100)}...\n知识条目: ${snapshot.topKB.split('\n').length} 条`;
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'snapshot_read',
+      label: 'snapshot_read',
+      description: '读取当前 KB 快照文件内容。返回 session 启动时冻结的 KB 上下文。如果快照不存在，返回提示信息。',
+      parameters: Type.Object({}),
+      async execute(_params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const content = await readSnapshot(c.workspace_root, c.user_id);
+          return content || '暂无快照。请先调用 snapshot_create 创建。';
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'session_note_write',
+      label: 'session_note_write',
+      description: '写入 Session Note（Agent 自述笔记）。类似 Hermes MEMORY.md：Agent 可在关键操作后调用 "写一写自己的观察"。限制 2200 字符，超出自动截断。内容风格：第一人称，Agent 视角。',
+      parameters: Type.Object({
+        content: Type.String({ description: '笔记内容（第一人称，Agent 视角，限 2200 字符）' }),
+      }),
+      async execute(params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const p = params as any;
+          await writeSessionNote(c.workspace_root, c.user_id, p.content);
+          return 'Session Note 已写入';
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'session_note_read',
+      label: 'session_note_read',
+      description: '读取当前 Session Note。返回 Agent 之前写的自述笔记，包括上轮 session 的 Agent 视角总结。用于跨 session 上下文传递。',
+      parameters: Type.Object({}),
+      async execute(_params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const content = await readSessionNote(c.workspace_root, c.user_id);
+          return content || '暂无 Session Note。';
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'memory_compress',
+      label: 'memory_compress',
+      description: '手动触发用户 KB 压缩。压缩策略：insights.md 超过 8K 字符时保留最近 50 行 + 已压缩标记的行；kb.json 超过 200 条目时保留所有 high 置信度 + 最近 20 条 medium/low。不直接删除数据——老数据合并为摘要。',
+      parameters: Type.Object({}),
+      async execute(_params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const result = await autoCompress(c.workspace_root, c.user_id);
+          return result.compressed.length > 0
+            ? `已压缩: ${result.compressed.join(', ')}。释放 ${result.freed} 条目/字符。`
+            : '无需压缩。';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }

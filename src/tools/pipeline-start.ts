@@ -7,6 +7,7 @@ import { initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { WORKSPACE_ROOT } from '../config.js';
+import { freezeSnapshot } from './session-memory.js';
 
 export interface PipelineStartResult {
   status: 'initialized' | 'checkpoint_reached' | 'completed' | 'error';
@@ -212,6 +213,9 @@ export async function pipelineStart(
 
     // 初始化
     state = await stateManager.initialize(template, mode);
+
+    // Hermes 模式：session 启动时冻结 KB 快照 → 保护 prefix cache
+    await freezeSnapshot(root, userId, projectId);
 
     // 自动推进不需要 checkpoints 的阶段
     state = await autoAdvanceNonCheckpointStages(stateManager, template, state, userId, projectId, root, api);

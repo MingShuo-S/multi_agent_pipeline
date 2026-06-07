@@ -683,6 +683,107 @@ P4.1 topic-researcher → P4.2 content-writer → P4.3 quality-reviewer → P4.4
 
 ---
 
+---
+
+## P-Deploy-3. Agent 配置全面替换（SOUL.md + AGENT.md + SKILL.md）
+
+**目标**: 将 `applications/buxiachuang/deploy.sh` 中的 5 个 inline SOUL.md（老旧精简版）替换为生产级的三件套。
+
+生产级配置已位于（手动编写完成）:
+```
+C:\Users\29548\Desktop\阳关\南京大学\11-比赛\小龙虾\决赛路演\agent-configs\
+├── topic-researcher-SOUL.md  + AGENT.md + SKILL.md
+├── content-writer-SOUL.md    + AGENT.md + SKILL.md
+├── quality-reviewer-SOUL.md  + AGENT.md + SKILL.md
+├── publisher-SOUL.md         + AGENT.md + SKILL.md
+└── post-analyst-SOUL.md      + AGENT.md + SKILL.md
+```
+
+### 改动清单
+
+#### 1. `applications/buxiachuang/deploy.sh`
+
+将 `# 3. 写入 SOUL.md` 段的 5 个 `cat > ... << 'EOF'` heredoc 替换为文件复制:
+
+```bash
+# ---------- 3. 写入 Agent 配置（SOUL.md + AGENT.md + SKILL.md）----------
+AGENT_CONFIGS_SRC="C:/Users/29548/Desktop/阳关/南京大学/11-比赛/小龙虾/决赛路演/agent-configs"
+
+for agent in "${AGENTS[@]}"; do
+  WS="${AGENT_WORKSPACE_ROOT}/${agent}"
+
+  # 从源目录复制生产级配置
+  if [ -f "${AGENT_CONFIGS_SRC}/${agent}-SOUL.md" ]; then
+    cp "${AGENT_CONFIGS_SRC}/${agent}-SOUL.md"   "${WS}/SOUL.md"
+    cp "${AGENT_CONFIGS_SRC}/${agent}-AGENT.md"  "${WS}/AGENT.md"
+    cp "${AGENT_CONFIGS_SRC}/${agent}-SKILL.md"  "${WS}/SKILL.md"
+    echo "  ✓ ${agent}: SOUL.md + AGENT.md + SKILL.md"
+  else
+    echo "  ⚠ ${agent}: 未找到生产级配置，保留默认占位"
+  fi
+done
+```
+
+> **注意**: 如果部署环境是 Linux 容器，路径 `C:/Users/...` 不可达。解决方案：在提交代码前，运行一次 `scripts/sync-agent-configs.sh`（见下方）将 config 文件复制到项目内的 `templates/agent-configs/` 目录，再提交 Git。
+
+#### 2. 更新 `register_agent` 调用的工具权限和模型
+
+当前 `applications/buxiachuang/deploy.sh` 第 260 行的 `register_agent` 调用保持不变（基础权限），**但 AGENT.md 文件中的模型路由只在 AGENT.md 中声明，pipeline template JSON 阶段定义才是实际生效的模型选择**。确保 `templates/xiaohongshu-creation.json` 的每个 stage 有正确的 `model` 字段。
+
+#### 3. 新增同步脚本 `scripts/sync-agent-configs.sh`
+
+用于将外部 `agent-configs/` 目录同步到项目内，方便 Git 管理:
+
+```bash
+#!/bin/bash
+# scripts/sync-agent-configs.sh
+# 将 agent-configs/（南京大学路径）同步到项目 templates/agent-configs/
+set -euo pipefail
+
+SRC="C:/Users/29548/Desktop/阳关/南京大学/11-比赛/小龙虾/决赛路演/agent-configs"
+DST="$(cd "$(dirname "$0")/.." && pwd)/templates/agent-configs"
+
+mkdir -p "$DST"
+for agent in topic-researcher content-writer quality-reviewer publisher post-analyst; do
+  cp "${SRC}/${agent}-SOUL.md"  "${DST}/${agent}-SOUL.md"
+  cp "${SRC}/${agent}-AGENT.md" "${DST}/${agent}-AGENT.md"
+  cp "${SRC}/${agent}-SKILL.md" "${DST}/${agent}-SKILL.md"
+  echo "  ✓ ${agent}"
+done
+echo "已同步到 ${DST}"
+```
+
+#### 4. 验证清单
+
+实现后 `ssh` 到部署环境验证:
+
+```bash
+# 检查各 agent 工作区
+ls -la ~/.openclaw/workspace/{topic-researcher,content-writer,quality-reviewer,publisher,post-analyst}/
+# 预期: 每个目录有 SOUL.md + AGENT.md + SKILL.md
+
+# 检查注册
+cat ~/.openclaw/openclaw.json | python3 -c "import json,sys;d=json.load(sys.stdin);[print(a['id']) for a in d['agents']['list']]"
+
+# 检查已安装 skill
+openclaw skills list
+
+# 重启生效
+openclaw gateway restart
+```
+
+### 各 Agent 配置概览（供实现后对照）
+
+| Agent | SOUL.md 核心身份 | AGENT.md 默认模型 | SKILL.md 核心步骤 | 外部 Skills |
+|-------|-----------------|-------------------|-------------------|-------------|
+| topic-researcher | 选题调研分身，先聊天再搜索 | qwen3.5-plus | 6 步：出题→分类→搜→下钻→简报→笔记 | multi-search-engine, search-academic, lark-* |
+| content-writer | 写作分身，用用户声音说话 | kimi-k2.5 | 6 步+6 平台指南+风格 DNA 系统+零幻觉 | style-voiceprint, ai-humanizer |
+| quality-reviewer | 质检员，不改原文 | qwen3.5-plus | 4 步+加权评分（7.0 通过）+6 平台清单 | multi-search-engine, fact-check, fact-checker-cn, ai-humanizer |
+| publisher | 发布专家，保真/合规/可回溯 | qwen3.5-plus | 7 步：门禁→平台→规则→适配→确认→发布→记录+待回采 | social-media-publish, fox-xiaohongshu-publish, multi-search-engine |
+| post-analyst | 效果分析师，闭环最后一环 | kimi-k2.5 | 0（外部回采匹配）+5 步：收集→评估→模式→反馈→归档 | multi-search-engine |
+
+---
+
 ## 参考文件
 
 | 参考 | 位置 |
@@ -695,5 +796,7 @@ P4.1 topic-researcher → P4.2 content-writer → P4.3 quality-reviewer → P4.4
 | 完整对比表 | `AI工作区\调研\理科\07-部虾做部虾创创新点竞品调研.md` §3 |
 | Dual Readability | `AI工作区\AI笔记\03-人与AI双重可读性设计原则.md` |
 | deploy.sh | `applications/buxiachuang/deploy.sh` |
+| Agent 生产配置源 | `C:\Users\29548\Desktop\阳关\南京大学\11-比赛\小龙虾\决赛路演\agent-configs\` |
+| 外部 Skills 指南 | `docs/external-skills-guide.md` |
 | ClawHub | https://clawhub.ai |
 | web-search skill | https://clawhub.ai/skills/web-search |

@@ -247,3 +247,40 @@ export interface VoiceprintState {
   confirmed: boolean;
   updatedAt: string;
 }
+
+// ---- Session Memory 类型 ----
+
+export interface SearchQuery {
+  keyword?: string;
+  slotName?: string;
+  agent?: string;
+  fromTime?: string;
+  toTime?: string;
+  limit?: number;
+}
+
+export interface SearchResult {
+  projectId: string;
+  slotName: string;
+  content: string | object;
+  writtenAt: string;
+  version: number;
+  agent: string;
+}
+
+export interface FrozenSnapshotContent {
+  styleDna: string;
+  persona: string;
+  insights: string;
+  topKB: string;
+  sessionNote: string | null;
+  sessionStart: string;
+  projectId: string;
+}
+
+export interface CompressResult {
+  compressed: string[];
+  freed: number;
+  kept: number;
+  entriesKept: number;
+}

@@ -10,6 +10,7 @@ import { StyleSystem } from './style-system.js';
 import { detectStyleSignals, extractAndRecordSignals } from './style-signal-detector.js';
 import { WORKSPACE_ROOT } from '../config.js';
 import { isAdvanceSignal } from '../runtime/pipeline-utils.js';
+import { freezeSnapshot, writeSessionNote, writeHandoffNote, autoCompress, shouldCompress } from './session-memory.js';
 
 export interface ContinueResult {
   status: 'dialogue_continued' | 'stage_advanced' | 'completed' | 'error';
@@ -345,6 +346,12 @@ export async function pipelineContinue(
           if (state.current_stage >= template.stages.length) {
             state.status = 'completed';
             await stateManager.save(state);
+            // Hermes: session 完成时写自述笔记 + 检查压缩
+            const prevAgent = template.stages[state.current_stage - 1]?.agent || 'unknown';
+            await writeSessionNote(root, userId, `[pipeline] 接力完成。全部 ${template.stages.length} 阶段已完成，最后一位专家: ${prevAgent}。记得调用 snapshot_create 冻结快照保护缓存。`).catch(() => {});
+            if (await shouldCompress(root, userId).catch(() => false)) {
+              await autoCompress(root, userId).catch(() => {});
+            }
             return {
               status: 'completed', action_taken: 'completed',
               current_stage: state.current_stage, current_stage_name: '完成', current_agent: '',
@@ -355,6 +362,11 @@ export async function pipelineContinue(
           }
 
           const newStage = template.stages[state.current_stage];
+          // Hermes: handoff note — 记录 Agent 接力摘要
+          const completedAgent = template.stages[state.current_stage - 1]?.agent || 'unknown';
+          await writeHandoffNote(root, userId, completedAgent, newStage.agent,
+            `阶段 "${template.stages[state.current_stage - 1]?.id || completedAgent}" 完成，推进到 "${newStage.id}"。`
+          ).catch(() => {});
           return {
             status: 'stage_advanced', action_taken: 'advanced',
             current_stage: state.current_stage,
@@ -402,6 +414,11 @@ export async function pipelineContinue(
       if (state.current_stage >= template.stages.length) {
         state.status = 'completed';
         await stateManager.save(state);
+        // Hermes: session 完成时写自述笔记 + 检查压缩
+        await writeSessionNote(root, userId, `[pipeline] 接力完成。全部 ${template.stages.length} 阶段已完成。`).catch(() => {});
+        if (await shouldCompress(root, userId).catch(() => false)) {
+          await autoCompress(root, userId).catch(() => {});
+        }
         return {
           status: 'completed', action_taken: 'completed',
           current_stage: state.current_stage, current_stage_name: '完成', current_agent: '',
@@ -412,6 +429,11 @@ export async function pipelineContinue(
       }
 
       const newStage = template.stages[state.current_stage];
+      // Hermes: handoff note
+      const completedAgent = template.stages[state.current_stage - 1]?.agent || 'unknown';
+      await writeHandoffNote(root, userId, completedAgent, newStage.agent,
+        `阶段 "${template.stages[state.current_stage - 1]?.id || completedAgent}" 完成，推进到 "${newStage.id}"。`
+      ).catch(() => {});
       return {
         status: 'stage_advanced', action_taken: 'advanced',
         current_stage: state.current_stage,

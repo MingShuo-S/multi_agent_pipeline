@@ -13,13 +13,35 @@
 │   │       └── agents/
 │   │           └── {agentName}-profile.json  # per-agent 偏好（兼容旧版）
 │   ├── agent-guides/                   # Agent 协作指南
-│   └── _shared/                        # 共享知识库（所有 agent 可读）
+│   ├── kb_platform/                    # 内部知识库（开发者维护，Agent 只读）
+│   │   └── {platform}/
+│   │       ├── 00-README.md            # 索引
+│   │       ├── platform-data.md        # 平台数据
+│   │       ├── algorithm-rules.md      # 算法规则
+│   │       ├── format-rules.md         # 格式规范
+│   │       ├── content-templates.md    # 内容模板
+│   │       ├── title-formulas.md       # 标题公式
+│   │       ├── sensitive-words.md      # 敏感词库
+│   │       ├── insights/               # 行业数据（可选）
+│   │       └── _ai/                    # AI 摘要（自动生成）
+│   └── _shared/                        # 用户知识库（Agent 读写）
 │       └── {userId}/
-│           ├── style-dna.json          # 风格 DNA（content-writer 硬注入）
+│           ├── style-dna.json          # 风格 DNA（content-writer 维护）
 │           ├── persona.md              # 用户画像（所有 agent 可读）
-│           ├── insights.md             # 累积洞察（所有 agent 贡献）
+│           ├── writing-patterns.md     # 写作偏好（content-writer 维护）
 │           ├── kb.json                 # 结构化知识条目
-│           └── change-log/             # 风格演化历史
+│           ├── change-log/             # 风格演化历史
+│           ├── memory/                 # 记忆系统（Hermes 启发式）
+│           │   ├── session-snapshot.md # 冻结快照（session 启动时冻结）
+│           │   ├── session-note.md     # Agent 自述笔记（≤2.2K 字符）
+│           │   └── handoff-log/        # Agent 接力时间线
+│           ├── content/                # 历史内容归档（publisher 写）
+│           │   └── {platform}/
+│           └── analytics/              # 效果分析数据（post-analyst 维护核心区）
+│               └── {platform}/
+│                   ├── insights/       # 单篇分析存档
+│                   ├── titles-leaderboard.md    # 标题公式排名
+│                   └── templates-effectiveness.md # 模板效果排名
 ├── src/                                # 源代码
 ├── dist/                               # 编译输出
 ├── openclaw.plugin.json                # 插件注册
@@ -42,7 +64,13 @@
 | 用途 | 表达式 | 实际值示例 |
 |------|--------|-----------|
 | 工作区根 | `path.join(__dirname, '..', 'workspace')` | `.../multi-agent-pipeline/workspace/` |
-| 共享知识库 | `join(WORKSPACE_ROOT, '_shared', userId)` | `.../workspace/_shared/alice/` |
+| 内部知识库 | `join(WORKSPACE_ROOT, 'kb_platform', platform)` | `.../workspace/kb_platform/xiaohongshu/` |
+| 用户知识库 | `join(WORKSPACE_ROOT, '_shared', userId)` | `.../workspace/_shared/alice/` |
+| 用户分析数据 | `join(WORKSPACE_ROOT, '_shared', userId, 'analytics', platform)` | `.../workspace/_shared/alice/analytics/xiaohongshu/` |
+| 用户内容存档 | `join(WORKSPACE_ROOT, '_shared', userId, 'content', platform)` | `.../workspace/_shared/alice/content/xiaohongshu/` |
+| 记忆快照 | `join(WORKSPACE_ROOT, '_shared', userId, 'memory', 'session-snapshot.md')` | `.../workspace/_shared/alice/memory/session-snapshot.md` |
+| Agent 自述笔记 | `join(WORKSPACE_ROOT, '_shared', userId, 'memory', 'session-note.md')` | `.../workspace/_shared/alice/memory/session-note.md` |
+| 接力日志 | `join(WORKSPACE_ROOT, '_shared', userId, 'memory', 'handoff-log')` | `.../workspace/_shared/alice/memory/handoff-log/` |
 | 模板目录 | `join(WORKSPACE_ROOT, 'templates')` | `.../workspace/templates/` |
 | 状态文件 | `join(projects, userId, projectId, 'state.json')` | `.../workspace/projects/alice/travel/state.json` |
 

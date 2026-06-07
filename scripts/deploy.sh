@@ -89,6 +89,11 @@ cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
 查看应用模板: workspace/templates/ 下列出 `{app_name}-*.json`
 启动应用: pipeline_start(template_name, ...)
 
+### 4. 内容回采（post-publishing data collection）
+内容发布后，用户可能告诉你效果数据。你的职责是识别这类消息并路由给 post-analyst。
+
+**不要自己去分析数据，不要自己去匹配内容。** 你只负责识别和路由。
+
 ## 强制规则
 
 ### 规则 1：先发现，再启动
@@ -113,6 +118,7 @@ cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
 | "下一阶段" / "完成" / "过" | `pipeline_continue`（自动推进） | 推进到下一阶段 |
 | "这个数据不对，核实一下" | `pipeline_continue` | 路由给当前专家，插 remark |
 | "帮我看看有什么模板" | `workspace_config`（管道外） | 应用发现，非创作需求 |
+| "那篇小红书有数据了" / "阅读量5000" / "发出去效果不错" / 提及具体指标（阅读/点赞/评论） | `route_message("post-analyst", ...)` | **回采事件** — 把用户消息原样路由给 post-analyst，让它去匹配内容和做分析 |
 
 ### 规则 4：展示内容，不加包装
 - 展示 slot_output.value 的完整内容
@@ -245,21 +251,43 @@ if [ "$app_count" -eq 0 ]; then
   echo "   框架核心已部署完成，但没有任何应用 Agents 可用。"
 fi
 
-# ---------- 步骤 7: 安装 ClawHub Skills ----------
+# ---------- 步骤 7: 安装外部 Skills ----------
 echo ""
-echo "=== 步骤 7: 安装 ClawHub Skills ==="
+echo "=== 步骤 7: 安装外部 Skills ==="
+
+# 7a: ClawHub 技能
 if command -v openclaw &>/dev/null; then
-  SKILLS=("web-search" "summarize")
+  SKILLS=(
+    "multi-search-engine"
+    "ai-humanizer"
+    "fact-check"
+    "fact-checker-cn"
+    "social-media-publish"
+    "fox-xiaohongshu-publish"
+  )
   for skill in "${SKILLS[@]}"; do
     if openclaw skills list 2>/dev/null | grep -q "$skill"; then
       echo "  ✓ $skill 已安装"
     else
       echo "  → 安装 $skill..."
-      openclaw skills install "$skill" 2>&1 && echo "  ✓ $skill 安装完成" || echo "  ⚠ $skill 安装失败（非关键，可跳过）"
+      openclaw skills install "$skill" 2>&1 && echo "  ✓ $skill 安装完成" || echo "  ⚠ $skill 安装失败"
     fi
   done
 else
-  echo "  ⚠ openclaw 命令不可用，跳过 skill 安装"
+  echo "  ⚠ openclaw 命令不可用，跳过 ClawHub skill 安装"
+fi
+
+# 7b: 本地技能（style-voiceprint 依赖 pipeline voiceprint_* 工具）
+LOCAL_SKILL_SRC="${PLUGIN_DIR}/skills"
+if [ -d "${LOCAL_SKILL_SRC}/style-voiceprint" ]; then
+  if command -v openclaw &>/dev/null; then
+    if [ ! -d "$(openclaw skills list --json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print([s['dir'] for s in d if s['name']=='style-voiceprint'][0] if any(s['name']=='style-voiceprint' for s in d) else '')" 2>/dev/null)" ]; then
+      echo "  → 安装 style-voiceprint（本地）..."
+      openclaw skills install "${LOCAL_SKILL_SRC}/style-voiceprint" --as style-voiceprint 2>&1 && echo "  ✓ style-voiceprint 安装完成" || echo "  ⚠ style-voiceprint 安装失败"
+    else
+      echo "  ✓ style-voiceprint 已安装"
+    fi
+  fi
 fi
 echo "✓ 步骤 7 完成"
 
