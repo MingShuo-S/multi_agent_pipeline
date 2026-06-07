@@ -45,6 +45,14 @@ fi
 # ---------- 步骤 1: 安装依赖 + 编译插件 ----------
 echo "=== 步骤 1: 安装依赖 + 编译插件 ==="
 cd "${PLUGIN_DIR}"
+
+# 配置 npm 国内镜像（如果未配置）
+if ! npm config get registry 2>/dev/null | grep -q "npmmirror"; then
+  echo "  配置 npm 国内镜像..."
+  npm config set registry https://registry.npmmirror.com
+fi
+
+echo "  安装依赖（首次可能需要 1-2 分钟）..."
 npm install --include=dev 2>&1 | tail -3
 npm run build 2>&1
 echo "✓ 编译完成"
