@@ -2,7 +2,7 @@
 
 import path from 'path';
 import { promises as fs } from 'fs';
-import { Template, PipelineState, AgentProfile } from '../types.js';
+import { Template, PipelineState, AgentProfile, PipelineSchema, SchemaLayer } from '../types.js';
 import type { AgentRole } from '../types.js';
 import { ToolAuth } from '../tools/tool-auth.js';
 import { AgentGuideGenerator } from '../tools/agent-guide-generator.js';
@@ -32,8 +32,6 @@ export class PromptBuilder {
 
     const readableSlots = ToolAuth.getReadableSlots(template, state.current_stage);
     const writableSlots = ToolAuth.getWritableSlots(template, state.current_stage);
-
-    const slotContent = this.buildSlotContent(state, readableSlots);
 
     const injectionLayer = new InjectionLayer(this.workspaceRoot, this.userId);
     const { headBlock, tailBlock } = await injectionLayer.buildForRole(
@@ -79,12 +77,17 @@ export class PromptBuilder {
       );
     }
 
-    // 5. 当前管道上下文
-    promptParts.push(
-      `【当前管道上下文】\n` +
-      `以下 slot 的内容是你有权查看的：\n` +
-      slotContent + '\n'
-    );
+    // 5. 当前管道上下文（P0-1: 按 schema 分层注入）
+    if (template.schema) {
+      promptParts.push(this.buildSchemaContent(template.schema, state, readableSlots));
+    } else {
+      const slotContent = this.buildSlotContent(state, readableSlots);
+      promptParts.push(
+        `【当前管道上下文】\n` +
+        `以下 slot 的内容是你有权查看的：\n` +
+        slotContent + '\n'
+      );
+    }
 
     // 6. 协作指南（可选）
     if (guide) {
@@ -118,12 +121,59 @@ export class PromptBuilder {
     for (const slotName of readableSlots) {
       const value = state.slot_values[slotName];
       if (value !== undefined && value !== '') {
-        const value = state.slot_values[slotName];
         const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
         lines.push(`- **${slotName}**:\n${this.indent(content, 2)}`);
       }
     }
     return lines.length > 0 ? lines.join('\n') : '（暂无 Slot 内容）';
+  }
+
+  /**
+   * P0-1: 按 schema 分层构建 prompt 内容
+   * - input → 用户输入（系统级，写在最前面）
+   * - working → 中间产物（上下文区）
+   * - output → 最终产物（只读展示）
+   */
+  private buildSchemaContent(schema: PipelineSchema, state: PipelineState, readableSlots: string[]): string {
+    const readableSet = new Set(readableSlots);
+    const parts: string[] = [];
+
+    // input 层：用户输入
+    const inputLines = this.buildLayerContent(schema.input, state, readableSet);
+    if (inputLines) {
+      parts.push(`【用户输入】\n${inputLines}`);
+    }
+
+    // working 层：中间产物
+    const workingLines = this.buildLayerContent(schema.working, state, readableSet);
+    if (workingLines) {
+      parts.push(`【工作上下文】\n${workingLines}`);
+    }
+
+    // output 层：最终产物（只读展示）
+    const outputLines = this.buildLayerContent(schema.output, state, readableSet);
+    if (outputLines) {
+      parts.push(`【已完成产出（只读）】\n${outputLines}`);
+    }
+
+    return parts.length > 0 ? parts.join('\n') : '（暂无 Slot 内容）';
+  }
+
+  private buildLayerContent(
+    layerSlots: Record<string, { description: string }>,
+    state: PipelineState,
+    readableSet: Set<string>
+  ): string {
+    const lines: string[] = [];
+    for (const [slotName, slotDef] of Object.entries(layerSlots)) {
+      if (!readableSet.has(slotName)) continue;
+      const value = state.slot_values[slotName];
+      if (value !== undefined && value !== '') {
+        const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        lines.push(`- **${slotName}**（${slotDef.description}）:\n${this.indent(content, 2)}`);
+      }
+    }
+    return lines.join('\n');
   }
 
   private indent(text: string, spaces: number): string {

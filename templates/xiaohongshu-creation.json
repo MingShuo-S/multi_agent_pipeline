@@ -3,6 +3,22 @@
   "description": "小红书笔记创作：选题调研 → 写作打磨 → 审核 → 发布 → 回采",
   "mode": "relay",
   "author_label": "本文由 [用户] 与部虾创专家团联合创作",
+  "schema": {
+    "input": {
+      "article_idea": { "description": "用户输入的文章主题", "type": "string", "required": true },
+      "target_audience": { "description": "目标读者", "type": "string" }
+    },
+    "working": {
+      "topic_brief": { "description": "选题简报", "type": "string" },
+      "research_notes": { "description": "调研笔记", "type": "string", "reducer": "append" },
+      "draft_content": { "description": "草稿正文", "type": "string" },
+      "review_feedback": { "description": "审核反馈", "type": "string" },
+      "performance_insights": { "description": "效果分析洞察", "type": "string" }
+    },
+    "output": {
+      "final_output": { "description": "最终发布文章", "type": "string" }
+    }
+  },
   "stages": [
     {
       "id": "topic-research",
@@ -16,7 +32,7 @@
       "id": "draft-writing",
       "agent": "content-writer",
       "checkpoint": true,
-      "allow_read": ["topic_brief", "research_notes"],
+      "allow_read": ["article_idea", "target_audience", "topic_brief", "research_notes"],
       "allow_write": ["draft_content"],
       "description": "创作正文：基于调研数据 + 风格档案写作"
     },
@@ -24,7 +40,7 @@
       "id": "review",
       "agent": "quality-reviewer",
       "checkpoint": true,
-      "allow_read": ["draft_content", "research_notes"],
+      "allow_read": ["draft_content", "research_notes", "article_idea"],
       "allow_write": ["review_feedback"],
       "description": "质量审核：事实核查、撞车检测、平台规则检查"
     },
@@ -32,7 +48,7 @@
       "id": "publish",
       "agent": "publisher",
       "checkpoint": true,
-      "allow_read": ["draft_content", "review_feedback"],
+      "allow_read": ["draft_content", "review_feedback", "article_idea", "target_audience"],
       "allow_write": ["final_output"],
       "description": "发布准备：标题优化 + 标签生成 + 平台格式化"
     },
@@ -45,7 +61,25 @@
       "description": "回采分析：发布后效果跟踪 + 策略洞察（不作为默认流程）"
     }
   ],
+  "interrupts": [
+    {
+      "stage": "draft-writing",
+      "slot": "draft_content",
+      "message": "草稿已完成。输入「继续」提交审核，或告诉我修改意见。",
+      "confirmKeywords": ["继续", "可以", "好的", "ok", "yes", "go", "没问题"],
+      "reviseKeywords": ["改", "不要", "不行", "重写", "不对", "太长", "太短"]
+    },
+    {
+      "stage": "review",
+      "slot": "review_feedback",
+      "message": "审核完成。输入「继续」发布，或告诉我修改意见。",
+      "confirmKeywords": ["继续", "可以", "好的", "ok", "yes", "go", "没问题"],
+      "reviseKeywords": ["改", "不要", "不行", "重写", "不对"]
+    }
+  ],
   "slots": {
+    "article_idea": { "type": "text", "default": "" },
+    "target_audience": { "type": "text", "default": "" },
     "topic_brief": { "type": "text", "default": "" },
     "research_notes": { "type": "text", "default": "" },
     "draft_content": { "type": "text", "default": "" },

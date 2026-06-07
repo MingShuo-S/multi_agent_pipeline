@@ -7,6 +7,26 @@ export interface TemplateSlot {
   default: string | object;
 }
 
+// ---- P0-1: Schema 分层 ----
+
+export type SchemaLayer = 'input' | 'working' | 'output';
+
+export type Reducer = 'replace' | 'append' | 'merge';
+
+export interface SlotDef {
+  description: string;
+  type: 'string' | 'string[]' | 'object';
+  reducer?: Reducer;
+  required?: boolean;
+  default?: string | object;
+}
+
+export interface PipelineSchema {
+  input: Record<string, SlotDef>;
+  working: Record<string, SlotDef>;
+  output: Record<string, SlotDef>;
+}
+
 export interface PlatformRule {
   platform: string;
   ai_label_required: boolean;
@@ -25,11 +45,23 @@ export interface PipelineStage {
   description?: string;
 }
 
+// ---- P0-3: Interrupt 暂停点 ----
+
+export interface InterruptPoint {
+  stage: string;
+  slot: string;
+  message: string;
+  confirmKeywords: string[];
+  reviseKeywords: string[];
+}
+
 export interface Template {
   name: string;
   description: string;
   stages: PipelineStage[];
   slots: Record<string, TemplateSlot>;
+  schema?: PipelineSchema;
+  interrupts?: InterruptPoint[];
   mode?: PipelineMode;
   platforms?: PlatformRule[];
   author_label?: string;
@@ -68,6 +100,7 @@ export interface PipelineState {
   status: 'running' | 'paused' | 'completed' | 'failed';
   mode: PipelineMode;
   author?: string;
+  pending_interrupt?: InterruptPoint | null;
 }
 
 export interface AgentProfile {

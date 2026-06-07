@@ -3,6 +3,18 @@
   "description": "博客文章创作流水线：调研 → 写作 → 审核",
   "mode": "relay",
   "author_label": "本文由 [用户] 与部虾创专家团联合创作",
+  "schema": {
+    "input": {
+      "topic": { "description": "用户输入的博客主题", "type": "string", "required": true }
+    },
+    "working": {
+      "research_data": { "description": "调研收集的素材和数据", "type": "string" },
+      "draft": { "description": "博客正文草稿", "type": "string" }
+    },
+    "output": {
+      "final_post": { "description": "最终发布文章", "type": "string" }
+    }
+  },
   "stages": [
     {
       "id": "research",
@@ -27,6 +39,15 @@
       "allow_read": ["topic", "draft"],
       "allow_write": ["final_post"],
       "description": "审核：文章质量检查"
+    }
+  ],
+  "interrupts": [
+    {
+      "stage": "writing",
+      "slot": "draft",
+      "message": "博客初稿已完成。输入「继续」提交审核，或告诉我修改意见。",
+      "confirmKeywords": ["继续", "可以", "好的", "ok", "yes", "go"],
+      "reviseKeywords": ["改", "不要", "不行", "重写", "不对"]
     }
   ],
   "slots": {

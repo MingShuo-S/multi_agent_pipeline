@@ -31,13 +31,27 @@ export class ToolAuth {
     }
   }
 
+  /**
+   * 获取所有已注册的 slot 名称（兼容 schema 和旧 slots 格式）
+   */
+  static getAllSlotNames(template: Template): string[] {
+    if (template.schema) {
+      return [
+        ...Object.keys(template.schema.input),
+        ...Object.keys(template.schema.working),
+        ...Object.keys(template.schema.output),
+      ];
+    }
+    return Object.keys(template.slots);
+  }
+
   static getReadableSlots(template: Template, currentStageIndex: number): string[] {
     if (currentStageIndex < 0 || currentStageIndex >= template.stages.length) {
       return [];
     }
     const stage = template.stages[currentStageIndex];
     if (stage.allow_read.includes('*')) {
-      return Object.keys(template.slots);
+      return this.getAllSlotNames(template);
     }
     return stage.allow_read;
   }
@@ -48,7 +62,7 @@ export class ToolAuth {
     }
     const stage = template.stages[currentStageIndex];
     if (stage.allow_write.includes('*')) {
-      return Object.keys(template.slots);
+      return this.getAllSlotNames(template);
     }
     return stage.allow_write;
   }

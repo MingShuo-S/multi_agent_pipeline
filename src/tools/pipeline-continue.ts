@@ -1,7 +1,7 @@
 // src/tools/pipeline-continue.ts - 接力模式核心：对话路由 + 阶段推进 + 错误恢复
 // 风格信号检测已独立到 style-signal-detector.ts
 
-import { PipelineState, Template, callSubagent } from '../types.js';
+import { PipelineState, Template, callSubagent, InterruptPoint, Reducer } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager, initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
@@ -81,6 +81,96 @@ function buildStatusPanel(state: PipelineState, template: Template, currentStage
 const MAX_RETRIES = 2;
 const AGENT_TIMEOUT_MS = 180000;
 
+/**
+ * P0-2: 从 schema 中获取 slot 的 reducer 策略
+ */
+function getSlotReducer(template: Template, slotName: string): Reducer {
+  if (!template.schema) return 'replace';
+  const allSlots = {
+    ...template.schema.input,
+    ...template.schema.working,
+    ...template.schema.output,
+  };
+  return allSlots[slotName]?.reducer ?? 'replace';
+}
+
+/**
+ * P0-3: 检查是否有匹配的 interrupt point
+ */
+function findInterruptForStage(template: Template, completedStageId: string): InterruptPoint | null {
+  if (!template.interrupts) return null;
+  return template.interrupts.find(ip => ip.stage === completedStageId) ?? null;
+}
+
+/**
+ * P0-3: 处理 pending interrupt
+ * 返回 null 表示不匹配（当作普通对话），返回结果表示已处理
+ */
+async function handlePendingInterrupt(
+  stateManager: StateManager,
+  state: PipelineState,
+  template: Template,
+  message: string,
+  workspaceRoot: string,
+  userId: string,
+): Promise<{ handled: boolean; result?: ContinueResult }> {
+  const interrupt = state.pending_interrupt;
+  if (!interrupt) return { handled: false };
+
+  const trimmed = message.trim().toLowerCase();
+
+  // 检查确认关键词
+  const isConfirm = interrupt.confirmKeywords.some(kw =>
+    trimmed === kw.toLowerCase() ||
+    trimmed.startsWith(kw.toLowerCase() + ' ') ||
+    trimmed.endsWith(' ' + kw.toLowerCase())
+  );
+
+  if (isConfirm) {
+    // 确认通过，清除 interrupt，推进
+    await stateManager.setPendingInterrupt(null);
+    return {
+      handled: true,
+      result: {
+        status: 'stage_advanced',
+        action_taken: 'advanced',
+        current_stage: state.current_stage,
+        current_stage_name: template.stages[state.current_stage]?.id ?? '完成',
+        current_agent: template.stages[state.current_stage]?.agent ?? '',
+        total_stages: template.stages.length,
+        message: `已确认。${interrupt.message}`,
+        status_panel: buildStatusPanel(state, template, state.current_stage),
+      },
+    };
+  }
+
+  // 检查修改关键词
+  const isRevise = interrupt.reviseKeywords.some(kw =>
+    trimmed.includes(kw.toLowerCase())
+  );
+
+  if (isRevise) {
+    // 用 remark 记录纠正
+    await stateManager.addRemark('user', `[纠正] ${message}`);
+    return {
+      handled: true,
+      result: {
+        status: 'dialogue_continued',
+        action_taken: 'dialogue',
+        current_stage: state.current_stage,
+        current_stage_name: template.stages[state.current_stage]?.id ?? '',
+        current_agent: template.stages[state.current_stage]?.agent ?? '',
+        total_stages: template.stages.length,
+        message: `收到修改意见，已记录。请继续提供修改方向，或输入确认关键词继续推进。`,
+        status_panel: buildStatusPanel(state, template, state.current_stage),
+      },
+    };
+  }
+
+  // 不匹配任何关键词，当作普通对话继续
+  return { handled: false };
+}
+
 async function executeDialogue(
   stateManager: StateManager,
   state: PipelineState,
@@ -130,7 +220,8 @@ async function executeDialogue(
       }
 
       if (slotName) {
-        await stateManager.updateSlot(slotName, agentResponse, stage.agent);
+        const reducer = getSlotReducer(template, slotName);
+        await stateManager.updateSlot(slotName, agentResponse, stage.agent, reducer);
       }
 
       return { response: agentResponse, slotName, retries: attempt - 1 };
@@ -193,7 +284,8 @@ async function autoAdvanceNonCheckpoint(
     const agentResponse = await callSubagent(api, sessionKey, prompt);
     const slotName = stage.allow_write[0];
     if (slotName) {
-      await stateManager.updateSlot(slotName, agentResponse, stage.agent);
+      const reducer = getSlotReducer(template, slotName);
+      await stateManager.updateSlot(slotName, agentResponse, stage.agent, reducer);
     }
     const currentEntry = s.stage_history.find(h => h.stage === nextStage && !h.completed_at);
     if (currentEntry) currentEntry.completed_at = new Date().toISOString();
@@ -252,12 +344,72 @@ export async function pipelineContinue(
       template = await configManager.readTemplate(state.template_name);
     }
 
+    // P0-3: 先检查是否有 pending interrupt
+    if (state.pending_interrupt) {
+      const { handled, result } = await handlePendingInterrupt(stateManager, state, template, message, root, userId);
+      if (handled && result) {
+        state = await stateManager.load();
+        // 如果 interrupt 确认通过，需要真正推进
+        if (result.status === 'stage_advanced') {
+          await stateManager.completeCurrentStage();
+          state = await stateManager.load();
+          state = await stateManager.advanceStage();
+          state = await autoAdvanceNonCheckpoint(stateManager, template, state, userId, projectId, root, api);
+
+          if (state.current_stage >= template.stages.length) {
+            state.status = 'completed';
+            await stateManager.save(state);
+            return {
+              status: 'completed', action_taken: 'completed',
+              current_stage: state.current_stage, current_stage_name: '完成', current_agent: '',
+              total_stages: template.stages.length,
+              message: '所有阶段已完成！感谢使用部虾创。',
+              status_panel: buildStatusPanel(state, template, state.current_stage),
+            };
+          }
+
+          const newStage = template.stages[state.current_stage];
+          return {
+            status: 'stage_advanced', action_taken: 'advanced',
+            current_stage: state.current_stage,
+            current_stage_name: newStage.id,
+            current_agent: newStage.agent,
+            stage_description: newStage.description,
+            total_stages: template.stages.length,
+            message: `已推进到第 ${state.current_stage + 1}/${template.stages.length} 阶段：由 [${newStage.agent}] 为您服务。${newStage.description ? '\n任务：' + newStage.description : ''}\n\n请开始对话。`,
+            status_panel: buildStatusPanel(state, template, state.current_stage),
+          };
+        }
+        return result;
+      }
+      // 不匹配关键词，当作普通对话继续
+    }
+
     if (isAdvanceSignal(message)) {
+      // P0-3: 记录当前 stage id，用于检查 interrupt
+      const completedStageId = template.stages[state.current_stage]?.id;
+
       await stateManager.completeCurrentStage();
       state = await stateManager.load();
 
       const oldStage = state.current_stage;
       state = await stateManager.advanceStage();
+
+      // P0-3: 检查完成的 stage 是否有 interrupt
+      const interrupt = completedStageId ? findInterruptForStage(template, completedStageId) : null;
+      if (interrupt) {
+        await stateManager.setPendingInterrupt(interrupt);
+        state = await stateManager.load();
+        return {
+          status: 'dialogue_continued', action_taken: 'dialogue',
+          current_stage: state.current_stage,
+          current_stage_name: template.stages[state.current_stage]?.id ?? '',
+          current_agent: template.stages[state.current_stage]?.agent ?? '',
+          total_stages: template.stages.length,
+          message: interrupt.message,
+          status_panel: buildStatusPanel(state, template, state.current_stage),
+        };
+      }
 
       state = await autoAdvanceNonCheckpoint(stateManager, template, state, userId, projectId, root, api);
 

@@ -1,7 +1,7 @@
 // src/runtime/pipeline-runner.ts - 接力模式运行时
 
 import readline from 'readline';
-import type { Template, PipelineState } from '../types.js';
+import type { Template, PipelineState, InterruptPoint } from '../types.js';
 import { StateManager } from './state-manager.js';
 import { WorkspaceConfigManager } from '../tools/workspace-config.js';
 import { callSubagent, type SubagentAPI } from '../types.js';
@@ -69,6 +69,17 @@ export class PipelineRunner {
       const shouldAdvance = await this.dialogueWithAgent(template, state, stage);
 
       if (shouldAdvance) {
+        // P0-3: 检查 interrupt
+        const interrupt = this.findInterruptForStage(template, stage.id);
+        if (interrupt) {
+          console.log(`\n⏸️  ${interrupt.message}`);
+          const confirmed = await this.waitForInterruptConfirm(interrupt);
+          if (!confirmed) {
+            console.log('已取消推进，继续对话。');
+            continue;
+          }
+        }
+
         // 完成当前阶段
         await this.stateManager.completeCurrentStage();
         state = await this.stateManager.load();
@@ -215,5 +226,41 @@ export class PipelineRunner {
         resolve(answer);
       });
     });
+  }
+
+  /**
+   * P0-3: 查找 stage 对应的 interrupt point
+   */
+  private findInterruptForStage(template: Template, stageId: string): InterruptPoint | null {
+    if (!template.interrupts) return null;
+    return template.interrupts.find(ip => ip.stage === stageId) ?? null;
+  }
+
+  /**
+   * P0-3: 等待用户确认 interrupt
+   * 返回 true = 确认通过，false = 用户要修改
+   */
+  private async waitForInterruptConfirm(interrupt: InterruptPoint): Promise<boolean> {
+    while (true) {
+      const input = await this.prompt(`> `);
+      const trimmed = input.trim().toLowerCase();
+
+      const isConfirm = interrupt.confirmKeywords.some(kw =>
+        trimmed === kw.toLowerCase() ||
+        trimmed.startsWith(kw.toLowerCase() + ' ') ||
+        trimmed.endsWith(' ' + kw.toLowerCase())
+      );
+      if (isConfirm) return true;
+
+      const isRevise = interrupt.reviseKeywords.some(kw =>
+        trimmed.includes(kw.toLowerCase())
+      );
+      if (isRevise) {
+        console.log('收到修改意见。请继续对话，完成后再次输入推进信号。');
+        return false;
+      }
+
+      console.log('请输入确认关键词（如"继续"）或修改意见。');
+    }
   }
 }

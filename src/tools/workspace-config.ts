@@ -35,9 +35,12 @@ export function validateTemplate(data: unknown): string[] {
     }
   }
 
-  // slots
+  // slots（兼容旧格式，schema 存在时 slots 可选）
+  const hasSchema = t.schema && typeof t.schema === 'object';
   if (!t.slots || typeof t.slots !== 'object') {
-    errors.push('缺少 slots (object)');
+    if (!hasSchema) {
+      errors.push('缺少 slots (object) — 必须定义 slots 或 schema');
+    }
   } else {
     for (const [key, slot] of Object.entries(t.slots)) {
       const s = slot as Record<string, unknown>;
@@ -45,6 +48,21 @@ export function validateTemplate(data: unknown): string[] {
       if (!['text', 'json', 'file'].includes(s.type as string)) errors.push(`slots.${key} 缺少有效的 type (text|json|file)`);
       if (s.default === undefined) errors.push(`slots.${key} 缺少 default`);
     }
+  }
+
+  // schema（可选，P0-1）
+  if (hasSchema) {
+    const schema = t.schema as Record<string, unknown>;
+    for (const layer of ['input', 'working', 'output']) {
+      if (schema[layer] && typeof schema[layer] !== 'object') {
+        errors.push(`schema.${layer} 必须是对象`);
+      }
+    }
+  }
+
+  // interrupts（可选，P0-3）
+  if (t.interrupts && !Array.isArray(t.interrupts)) {
+    errors.push('interrupts 必须是数组');
   }
 
   return errors;

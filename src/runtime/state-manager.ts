@@ -2,7 +2,8 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { PipelineState, Template, SlotHistoryEntry, StageHistoryEntry, PipelineMode } from '../types.js';
+import { PipelineState, Template, SlotHistoryEntry, StageHistoryEntry, PipelineMode, SlotDef, Reducer } from '../types.js';
+import { applyReducer } from './reducers.js';
 
 const LOCK_RETRY_MS = 100;
 const LOCK_TIMEOUT_MS = 5000;
@@ -111,11 +112,24 @@ export class StateManager {
         stage_history: [],
         status: 'running',
         mode,
+        pending_interrupt: null,
       };
 
+      // P0-1: 支持 schema 分层初始化
+      if (template.schema) {
+        this.initSchemaSlots(state, template.schema.input);
+        this.initSchemaSlots(state, template.schema.working);
+        this.initSchemaSlots(state, template.schema.output);
+      }
+
+      // 兼容旧 slots 格式
       for (const [slotName, slotDef] of Object.entries(template.slots)) {
-        state.slot_values[slotName] = slotDef.default;
-        state.slot_history[slotName] = [];
+        if (!(slotName in state.slot_values)) {
+          state.slot_values[slotName] = slotDef.default;
+        }
+        if (!state.slot_history[slotName]) {
+          state.slot_history[slotName] = [];
+        }
       }
 
       if (template.stages.length > 0) {
@@ -133,6 +147,14 @@ export class StateManager {
     });
   }
 
+  private initSchemaSlots(state: PipelineState, slots: Record<string, SlotDef>): void {
+    for (const [slotName, slotDef] of Object.entries(slots)) {
+      const defaultVal = slotDef.default ?? '';
+      state.slot_values[slotName] = defaultVal;
+      state.slot_history[slotName] = [];
+    }
+  }
+
   async load(): Promise<PipelineState> {
     return this.loadInternal();
   }
@@ -145,20 +167,26 @@ export class StateManager {
 
   /**
    * 写入 Slot 并追加版本历史（append-only）
+   * P0-2: 支持 reducer 合并策略
    */
-  async updateSlot(slotName: string, content: string | object, agent: string): Promise<void> {
+  async updateSlot(slotName: string, content: string | object, agent: string, reducer: Reducer = 'replace'): Promise<void> {
     return this.modifyState(`updateSlot:${slotName}`, async (state) => {
       if (!state.slot_history[slotName]) {
         state.slot_history[slotName] = [];
       }
       const version = state.slot_history[slotName].length;
+
+      // P0-2: 按 reducer 策略合并
+      const current = state.slot_values[slotName];
+      const merged = applyReducer(current, content, reducer);
+
       state.slot_history[slotName].push({
         content,
         written_at: new Date().toISOString(),
         version,
         agent,
       });
-      state.slot_values[slotName] = content;
+      state.slot_values[slotName] = merged as string | object;
     });
   }
 
@@ -247,6 +275,20 @@ export class StateManager {
   async setAuthor(author: string): Promise<void> {
     return this.modifyState('setAuthor', async (state) => {
       state.author = author;
+    });
+  }
+
+  /**
+   * P0-3: 设置/清除 pending interrupt
+   */
+  async setPendingInterrupt(interrupt: import('../types.js').InterruptPoint | null): Promise<void> {
+    return this.modifyState('setPendingInterrupt', async (state) => {
+      state.pending_interrupt = interrupt;
+      if (interrupt) {
+        state.status = 'paused';
+      } else {
+        state.status = 'running';
+      }
     });
   }
 
