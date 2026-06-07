@@ -42,9 +42,10 @@ if [ "$(whoami)" = "root" ] && echo "$PLUGIN_DIR" | grep -q "^/home/"; then
   chown -R root:root "$PLUGIN_DIR" 2>/dev/null || true
 fi
 
-# ---------- 步骤 1: 编译插件 ----------
-echo "=== 步骤 1: 编译插件 ==="
+# ---------- 步骤 1: 安装依赖 + 编译插件 ----------
+echo "=== 步骤 1: 安装依赖 + 编译插件 ==="
 cd "${PLUGIN_DIR}"
+npm install --include=dev 2>&1 | tail -3
 npm run build 2>&1
 echo "✓ 编译完成"
 cd - > /dev/null
