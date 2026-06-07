@@ -1,0 +1,304 @@
+
+> @buxiazuo/multi-agent-pipeline@0.2.0 test
+> vitest run --reporter=verbose
+
+
+ RUN  v4.1.8 C:/Users/29548/Desktop/Sunshine/Projects/multi_agent_pipeline
+
+ ✓ tests/config.test.ts > config paths > WORKSPACE_ROOT 不包含 templates 后缀 171ms
+ ✓ tests/config.test.ts > config paths > SHARED_DIR 是 WORKSPACE_ROOT 的子路径 0ms
+ ✓ tests/config.test.ts > config paths > SEED_TEMPLATES_DIR 不同于 WORKSPACE_ROOT/templates 1ms
+stdout | tests/cli.test.ts > cli.ts > init 命令调用 initializeWorkspace
+初始化工作区...
+
+ ✓ tests/cli.test.ts > cli.ts > init 命令调用 initializeWorkspace 322ms
+ ✓ tests/cli.test.ts > cli.ts > start 命令创建 PipelineRunner 传正确的 template 8ms
+ ✓ tests/cli.test.ts > cli.ts > start 命令调用 runner.run 5ms
+ ✓ tests/cli.test.ts > cli.ts > 模块可安全导入（不自动执行 yargs） 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > readProfile / writeProfile > 文件存在时 readProfile 返回解析后的对象 5ms
+ ✓ tests/style-system.test.ts > StyleSystem > readProfile / writeProfile > 文件不存在时 readProfile 返回 null 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > readProfile / writeProfile > writeProfile 写入文件 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > readProfile / writeProfile > 写后读回一致 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprint state > voiceprintInit 创建默认 profile 和 state 3ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprint state > voiceprintInit 已完成时返回 exists=true 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprint state > voiceprintInit 从中间步骤恢复 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprint state > voiceprintReset 删除 state 文件 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > step 1-4 路径 A 自动推进 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > step 4+1 后自动跳到 step 7（step 5 瞬态） 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > done=true 跳到 step 7 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > 路径 B 设置后自动跳到 step 7（step 5 瞬态） 0ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > 无 state 时报错 3ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintProceed > 返回的 prompt 对应当前 step 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintCalibrate > 写入偏好并推进到 step 9 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintCalibrate > step 不是 7 或 8 时报错 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintCalibrate > selectedForbiddenPhrases 写入禁用列表 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintAnalyze > 写入分析结果并推进到 step 10 5ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintAnalyze > step 不是 9 时报错 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintAnalyze > 无 profile 时报错 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintConfirm > 确认后生成 persona 并标记 step=99 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintConfirm > corrections 非空时不锁定 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > voiceprintConfirm > step 不是 10 时报错 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > processCorrectionSignal > forbidden 信号追加到 forbiddenPatterns 2ms
+ ✓ tests/style-system.test.ts > StyleSystem > processCorrectionSignal > preference 信号追加到 highFreq 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > processCorrectionSignal > 无 profile 时返回 false 0ms
+ ✓ tests/style-system.test.ts > StyleSystem > processCorrectionSignal > praise 信号写入 KB 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > processCorrectionSignal > 重复信号不重复写入 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > KB operations > kbWrite 追加条目 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > KB operations > kbRead 按 category 过滤 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > KB operations > kbRead 空文件返回空数组 0ms
+ ✓ tests/style-system.test.ts > StyleSystem > styleGetContext > 返回三层上下文 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > styleExtractSignal > 调用 processCorrectionSignal 并返回结果 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > appendInsight > 追加到 insights.md 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > readPersona / writePersona > 写 persona.md 后读回一致 1ms
+ ✓ tests/style-system.test.ts > StyleSystem > readPersona / writePersona > 无 persona 文件返回 null 3ms
+ ✓ tests/style-system.test.ts > StyleSystem > uniq > dedup 数组 1ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建所有必需目录 7ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建 README 索引文件 2ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建 style-dna.json 模板 2ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建 kb.json 模板 1ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建 persona.md 模板 1ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建 insights.md 模板 1ms
+ ✓ tests/install.test.ts > initializeWorkspace > 创建默认 pipeline 模板 1ms
+ ✓ tests/install.test.ts > initializeWorkspace > 复制 rules 种子文件 2ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > listTemplates > 空目录返回空数组 5ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > listTemplates > 列出 .json 文件 4ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > readTemplate > 读取合法模板 2ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > readTemplate > 读取带 .json 后缀也正常工作 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > readTemplate > 不存在的模板抛错 3ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > readTemplate > 结构无效的模板抛错 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > writeTemplate > 写入合法模板 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > writeTemplate > 无效模板抛错 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > memory operations > readMemory 返回空对象当文件不存在 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > memory operations > readMemory 读已有 profile 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > memory operations > writeMemory 后读回一致 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > shared profile > readSharedProfile 返回空对象当文件不存在 0ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > shared profile > writeSharedProfile 后读回一致 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > resetTemplate > 删除模板文件 1ms
+ ✓ tests/workspace-config.test.ts > WorkspaceConfigManager > resetTemplate > 删除不存在的模板抛错 1ms
+ ✓ tests/workspace-config.test.ts > workspaceConfig (top-level dispatch) > list_templates 1ms
+ ✓ tests/workspace-config.test.ts > workspaceConfig (top-level dispatch) > read_template 0ms
+ ✓ tests/workspace-config.test.ts > workspaceConfig (top-level dispatch) > write_template 3ms
+ ✓ tests/workspace-config.test.ts > workspaceConfig (top-level dispatch) > unknown action 抛错 1ms
+ ✓ tests/workspace-config.test.ts > initWorkspace > 创建目录结构和默认模板 3ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > 初始化时 pending_interrupt 为 null 9ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > setPendingInterrupt 设置 interrupt 并暂停 2ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > setPendingInterrupt(null) 清除 interrupt 并恢复 1ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > InterruptPoint 类型包含必要字段 1ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > confirmKeywords 包含预期关键词 2ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > reviseKeywords 包含预期关键词 1ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > interrupt 在正确 stage 触发 1ms
+ ✓ tests/interrupt-flow.test.ts > Interrupt 暂停点 (P0-3) > 没有定义 interrupts 的模板可以正常工作 1ms
+ ✓ tests/state-manager.test.ts > StateManager > initialize > 创建初始 state.json 9ms
+ ✓ tests/state-manager.test.ts > StateManager > initialize > 初始化时 slots 填入默认值 2ms
+ ✓ tests/state-manager.test.ts > StateManager > initialize > 初始化后 load 返回一致 1ms
+ ✓ tests/state-manager.test.ts > StateManager > updateSlot > 写入 slot 并追加历史 2ms
+ ✓ tests/state-manager.test.ts > StateManager > updateSlot > 多次写入堆叠版本 1ms
+ ✓ tests/state-manager.test.ts > StateManager > addRemark > 追加 remark 并带版本号 2ms
+ ✓ tests/state-manager.test.ts > StateManager > advanceStage > 推进到下一阶段 33ms
+ ✓ tests/state-manager.test.ts > StateManager > advanceStage > 最后一阶段推进后不新增 stage 2ms
+ ✓ tests/state-manager.test.ts > StateManager > status management > setStatus 更新状态 1ms
+ ✓ tests/state-manager.test.ts > StateManager > status management > markStageFailed 设置失败并完成当前阶段 12ms
+ ✓ tests/state-manager.test.ts > StateManager > completeCurrentStage > 完成当前阶段但不推进 1ms
+ ✓ tests/state-manager.test.ts > StateManager > setAuthor > 设置 author 0ms
+ ✓ tests/state-manager.test.ts > StateManager > findActiveState > 找到 status=running 的活跃 state 1ms
+ ✓ tests/state-manager.test.ts > StateManager > findActiveState > 无活跃 state 返回 null 0ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > 不存在项目返回 error 6ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > 返回初始状态的完整面板 3ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > stage 1 运行时状态正确 4ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > completed 状态正确 1ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > remarks 正确返回 2ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > 4 阶段模板状态正确 2ms
+ ✓ tests/pipeline-status.test.ts > pipelineStatus > slot history preview 截断超过 200 字符 1ms
+ ✓ tests/pipeline-core.test.ts > pipelineRead > 读取已由其他 agent 写入的 slot 8ms
+ ✓ tests/pipeline-core.test.ts > pipelineRead > 空 slot 返回提示信息 1ms
+ ✓ tests/pipeline-core.test.ts > pipelineRead > 不存在的 slot 返回提示信息 1ms
+ ✓ tests/pipeline-core.test.ts > pipelineRead > 拒绝无读权限的 agent（stage 1 writer 不能读 draft） 3ms
+ ✓ tests/pipeline-core.test.ts > pipelineWriteSlot > 写入合法 slot 成功 2ms
+ ✓ tests/pipeline-core.test.ts > pipelineWriteSlot > 拒绝无写权限的 agent 1ms
+ ✓ tests/pipeline-core.test.ts > pipelineWriteSlot > 写入不存在的 slot 抛错 1ms
+ ✓ tests/pipeline-core.test.ts > pipelineWriteSlot > 写入 object 类型 2ms
+ ✓ tests/pipeline-core.test.ts > pipelineAddRemark > 追加 remark 到 state 2ms
+ ✓ tests/pipeline-core.test.ts > pipelineAddRemark > 多次追加 remark 版本递增 1ms
+stdout | tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > 跳过非 checkpoint 阶段（stage 0 无 checkpoint）
+[自动] 跳过非 checkpoint 阶段: research (researcher)
+[自动] researcher > [researcher] 已处理你的消息，结果写入 topic slot。
+
+
+stdout | tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > 多阶段自动推进: 非 checkpoint 链
+[自动] 跳过非 checkpoint 阶段: s1 (a1)
+[自动] a1 > [a1] 已处理你的消息，结果写入 out1 slot。
+
+
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > 无活跃项目返回 error 6ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > advance 推进 > 从 stage 1 推进到完成（最后阶段推进） 7ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > advance 推进 > 已完成项目不重复推进 1ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > advance 推进 > 从 stage 0 推进到 stage 1 2ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > isAdvanceSignal > 精确匹配推进关键词 2ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > isAdvanceSignal > 关键词带前缀/后缀 1ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > isAdvanceSignal > 非推进消息返回 false 1ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > isAdvanceSignal > 大小写不敏感 0ms
+ ✓ tests/pipeline-continue.test.ts > pipelineContinue > isAdvanceSignal > 非精确匹配时不误判 1ms
+stdout | tests/pipeline-runner.test.ts > PipelineRunner > dialogueWithAgent > 普通消息调用 simulateAgentResponse 并继续循环
+
+[writer] > [writer] 已处理你的消息，结果写入 draft slot。
+
+
+ × tests/debug.test.ts > debug > show error for advance stage 0 26ms
+   → expected 'error' to be 'stage_advanced' // Object.is equality
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > simulateAgentResponse > topic-researcher 返回选题方向 6ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > simulateAgentResponse > web-researcher 返回调研数据 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > simulateAgentResponse > content-writer 返回初稿 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > simulateAgentResponse > 未知 agent 返回通用响应 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > simulateAgentResponse > 截断超长用户消息到 100 字符 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > 跳过非 checkpoint 阶段（stage 0 无 checkpoint） 6ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > checkpoint 阶段不跳过 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > 多阶段自动推进: 非 checkpoint 链 2ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > autoAdvanceNonCheckpoint > 已完成时不再推进 1ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > dialogueWithAgent > 推进信号返回 true 2ms
+ ✓ tests/pipeline-runner.test.ts > PipelineRunner > dialogueWithAgent > 普通消息调用 simulateAgentResponse 并继续循环 2ms
+ ✓ tests/route-message.test.ts > RouteMessageHandler > routeMessage > 非 orchestrator 调用抛错 8ms
+ ✓ tests/route-message.test.ts > RouteMessageHandler > routeMessage > 无活跃 project 时使用直接对话 prompt 16ms
+ ✓ tests/route-message.test.ts > RouteMessageHandler > routeMessage > 有活跃 project 时使用 pipeline prompt 5ms
+ ✓ tests/route-message.test.ts > routeMessage (top-level) > 非 orchestrator 抛错 2ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 3-stage 模板（非cp→cp→非cp） > 完整流程：初始化→对话→推进→完成 23ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 3-stage 模板（非cp→cp→非cp） > 无初始消息启动后手动对话 4ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 3-stage 模板（非cp→cp→非cp） > 推进到完成：不需要对话 3ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 全 checkpoint 模板（4-stage） > 每阶段逐步推进 9ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 2-stage 模板自动推进 > 非cp→cp 自动推进 2ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 2-stage 模板自动推进 > 初始消息+自动推进+对话 2ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 错误恢复：executeDialogue 短输出触发重试 > 短输出后重试成功 (via pipelineContinue) 6ms
+ ✓ tests/pipeline-flow.test.ts > pipeline 全流程模拟 > 错误恢复：executeDialogue 短输出触发重试 > 超出重试次数后返回 error (via pipelineContinue) 4ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 空消息返回空数组 6ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 普通消息不触发任何信号 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 中文纠正信号 > 检测"不是X"模式 2ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 中文纠正信号 > 检测"改成X吧" 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 中文纠正信号 > 检测"应该是X" 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 中文纠正信号 > 检测"建议写成X" 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 英文纠正信号 > 检测"it's not X" 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 英文纠正信号 > 检测"that is not X" 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 中文"不要用"触发 forbidden 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 中文"别用"触发 forbidden 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 中文"去掉"触发 forbidden 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 英文"don't use"触发 forbidden 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 英文"avoid"触发 forbidden 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 禁止信号 > 只生成一个 forbidden 信号（多个匹配取第一个） 1ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 正面信号 > "好"触发 praise 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 正面信号 > "不错"触发 praise 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 正面信号 > "great"触发 praise 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 正面信号 > 带标点的 praise 也匹配 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 正面信号 > 长消息不触发 praise 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 混合信号 > 纠正 + 禁止同时出现 0ms
+ ✓ tests/style-signal-detector.test.ts > detectStyleSignals > 混合信号 > 纠正 + praise 不同时出现（praise 只匹配纯短消息） 1ms
+ ✓ tests/memory.test.ts > MemoryManager > getProfile > 文件不存在返回空 profile 8ms
+ ✓ tests/memory.test.ts > MemoryManager > getProfile > 文件存在返回解析后的 profile 1ms
+ ✓ tests/memory.test.ts > MemoryManager > getProfile > preferences 为空时返回默认 1ms
+ ✓ tests/memory.test.ts > MemoryManager > recordFeedback > 新用户创建 profile 2ms
+ ✓ tests/memory.test.ts > MemoryManager > recordFeedback > 追加偏好到已有 profile 1ms
+ ✓ tests/memory.test.ts > MemoryManager > recordFeedback > 覆盖已有偏好 1ms
+ ✓ tests/memory.test.ts > MemoryManager > recordFeedback > 合并不同 key 的偏好 1ms
+ ✓ tests/memory.test.ts > styleGetProfile (top-level tool) > 无 profile 返回空对象 1ms
+ ✓ tests/memory.test.ts > styleGetProfile (top-level tool) > 有 profile 返回 preferences 1ms
+ ✓ tests/memory.test.ts > styleRecordFeedback (top-level tool) > 记录偏好并读取 2ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > 包含所有关键 prompt 区块 9ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > 无 userMessage 时使用任务提示 2ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > profile 有偏好时包含长期记忆段 1ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > profile 无偏好时不包含长期记忆段 1ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > 包含协作指南当文件存在时 1ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > slot 内容正确格式化 1ms
+ ✓ tests/prompt-builder.test.ts > PromptBuilder > buildPipelinePrompt > 空 slot 显示暂无内容 1ms
+ ✓ tests/schema-separation.test.ts > Schema 分离 (P0-1) > 初始化时 schema 的三层 slot 都创建默认值 8ms
+ ✓ tests/schema-separation.test.ts > Schema 分离 (P0-1) > schema slot 的历史记录初始化为空数组 2ms
+ ✓ tests/schema-separation.test.ts > Schema 分离 (P0-1) > schema slot 可正常写入和读取 2ms
+ ✓ tests/schema-separation.test.ts > Schema 分离 (P0-1) > schema 和旧 slots 格式共存 1ms
+ ✓ tests/schema-separation.test.ts > Schema 分离 (P0-1) > schema slot 不覆盖已有值 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 允许当前阶段读自己的 slot 4ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 允许当前阶段写自己的 slot 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 拒绝读其他 stage 的 slot 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 拒绝写其他 stage 的 slot 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 通配符 * 允许读任何 slot 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > checkSlotAccess > 非法 stage index 抛错 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > getReadableSlots > 返回当前 stage 的 allow_read 列表 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > getReadableSlots > 通配符返回全部 slot 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > getReadableSlots > 非法 index 返回空数组 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > getWritableSlots > 返回当前 stage 的 allow_write 列表 1ms
+ ✓ tests/tool-auth.test.ts > ToolAuth > getWritableSlots > 非法 index 返回空数组 0ms
+ ✓ tests/reducers.test.ts > applyReducer > replace > 后写覆盖前写 6ms
+ ✓ tests/reducers.test.ts > applyReducer > replace > 空值替换 1ms
+ ✓ tests/reducers.test.ts > applyReducer > replace > 对象替换 1ms
+ ✓ tests/reducers.test.ts > applyReducer > append > 追加到数组末尾 0ms
+ ✓ tests/reducers.test.ts > applyReducer > append > 空值时创建数组 1ms
+ ✓ tests/reducers.test.ts > applyReducer > append > 非数组时包装为数组 1ms
+ ✓ tests/reducers.test.ts > applyReducer > append > 追加数组到数组 1ms
+ ✓ tests/reducers.test.ts > applyReducer > append > 不乱序 1ms
+ ✓ tests/reducers.test.ts > applyReducer > merge > 浅合并对象 1ms
+ ✓ tests/reducers.test.ts > applyReducer > merge > current 非对象时返回 update 1ms
+ ✓ tests/reducers.test.ts > applyReducer > merge > update 非对象时返回 update 0ms
+ ✓ tests/reducers.test.ts > applyReducer > merge > null current 返回 update 0ms
+ ✓ tests/reducers.test.ts > applyReducer > merge > null update 返回 update 0ms
+ ✓ tests/reducers.test.ts > applyReducer > 默认 reducer > 未指定时默认 replace 0ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > content-writer 拿到风格 DNA headBlock 8ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > 非 content-writer 不含风格 DNA 1ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > 无 style-dna 时 headBlock 不含风格 1ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > 有 corePrinciples 但无 forbid/highFreq 时不含 WARM 段 1ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > headBlock 始终包含工作区全局规则 1ms
+ ✓ tests/injection-layer.test.ts > InjectionLayer > buildForRole > tailBlock 包含阶段和项目信息 1ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 合法模板返回空错误数组 3ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > null/undefined 报错 1ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 缺少 name 报错 2ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 缺少 description 报错 1ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > stages 为空数组报错 0ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 校验每个 stage 的必填字段 0ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 校验 slot 的 type 字段 0ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > 校验 slot 缺少 default 1ms
+ ✓ tests/workspace-config-validate.test.ts > validateTemplate > stage 的 checkpoint 非 boolean 报错 1ms
+ ✓ tests/pipeline-start.test.ts > pipelineStart > 参数校验 > 缺少 template_name 返回 error 4ms
+ ✓ tests/pipeline-start.test.ts > pipelineStart > 参数校验 > 缺少 user_id 返回 error 1ms
+ ✓ tests/pipeline-start.test.ts > pipelineStart > 参数校验 > 缺少 project_id 返回 error 0ms
+ ✓ tests/pipeline-start.test.ts > pipelineStart > 正常流程 > 模板不存在时 init 后读取，首个为 checkpoint 时直接返回 initialized 4ms
+ ✓ tests/pipeline-start.test.ts > pipelineStart > 正常流程 > 已存在的运行项目返回存在提示 1ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > generateGuide > 生成新的协作指南 4ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > generateGuide > append=false 覆盖已有文件 1ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > generateGuide > append=true 追加到已有文件 1ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > generateGuide > append=true 但文件不存在时直接写入 1ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > readGuide > 不存在的文件返回 null 0ms
+ ✓ tests/agent-guide-generator.test.ts > AgentGuideGenerator > readGuide > 读取已有指南 0ms
+ ✓ tests/agent-guide-generator.test.ts > agentGuideGenerator (top-level) > 生成指南 0ms
+ ✓ tests/agent-guide-generator.test.ts > agentGuideGenerator (top-level) > 追加指南 0ms
+ ✓ tests/skill-runner.test.ts > SkillRunner > buildToolList > 合并 agentTools 和 additionalTools，去重优先 4ms
+ ✓ tests/skill-runner.test.ts > SkillRunner > buildToolList > 空列表返回空数组 1ms
+ ✓ tests/skill-runner.test.ts > SkillRunner > buildToolList > 无 additionalTools 时只返回 agentTools 0ms
+ ✓ tests/skill-runner.test.ts > SkillRunner > run > callSubagent 失败返回错误结果 1ms
+ ✓ tests/skill-runner.test.ts > SkillRunner > run > getAgentTools 返回空数组 0ms
+ ✓ tests/types-utils.test.ts > extractAssistantText > 从消息数组中提取最后一条 assistant 内容 3ms
+ ✓ tests/types-utils.test.ts > extractAssistantText > 跳过非字符串 content 0ms
+ ✓ tests/types-utils.test.ts > extractAssistantText > 没有 assistant 消息返回空字符串 0ms
+ ✓ tests/types-utils.test.ts > extractAssistantText > 空数组返回空字符串 0ms
+ ✓ tests/types-utils.test.ts > extractAssistantText > 多个 assistant 取最后一条 0ms
+ ✓ tests/index.test.ts > index.ts — 模块结构 > 导出插件定义 1311ms
+ ✓ tests/index.test.ts > index.ts — 模块结构 > 重新导出所有关键类 1ms
+ ✓ tests/index.test.ts > index.ts — 模块结构 > 重新导出类型 0ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/debug.test.ts > debug > show error for advance stage 0
+AssertionError: expected 'error' to be 'stage_advanced' // Object.is equality
+
+Expected: "stage_advanced"
+Received: "error"
+
+ ❯ tests/debug.test.ts:36:27
+     34|     setFile(`${WR}/projects/${UID}/${PID}/state.json`, JSON.stringify(…
+     35|     const result = await pipelineContinue(UID, PID, '下一阶段', WR);
+     36|     expect(result.status).toBe('stage_advanced');
+       |                           ^
+     37|     expect(result.action_taken).toBe('advanced');
+     38|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 26 passed (27)
+      Tests  1 failed | 252 passed (253)
+   Start at  16:12:42
+   Duration  2.17s (transform 5.99s, setup 0ms, import 8.34s, tests 2.45s, environment 6ms)
+
