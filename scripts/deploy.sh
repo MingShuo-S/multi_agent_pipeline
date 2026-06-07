@@ -306,16 +306,29 @@ XHS_MCP_BIN="${XHS_MCP_DIR}/xiaohongshu-mcp-linux-amd64"
 # 使用 ghproxy.net 镜像（GitHub 直连在 BayesDL 不稳定）
 GITHUB_MIRROR="https://ghproxy.net"
 
-if [ ! -f "$XHS_MCP_BIN" ]; then
+# 检查 MCP Server 二进制是否可用（不只是 skill 定义）
+if [ -f "$XHS_MCP_BIN" ] && [ -x "$XHS_MCP_BIN" ]; then
+  echo "  ✓ xiaohongshu-mcp MCP Server 二进制已存在"
+else
   echo "  → 下载 xiaohongshu-mcp MCP Server..."
   mkdir -p "${XHS_MCP_DIR}"
   XHS_URL="${GITHUB_MIRROR}/https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-mcp-linux-amd64"
+  DOWNLOAD_OK=false
   if command -v wget &>/dev/null; then
-    wget -q "${XHS_URL}" -O "$XHS_MCP_BIN" && echo "  ✓ MCP Server 下载完成" || echo "  ⚠ MCP Server 下载失败"
+    wget -q "${XHS_URL}" -O "$XHS_MCP_BIN" && DOWNLOAD_OK=true
   elif command -v curl &>/dev/null; then
-    curl -sL "${XHS_URL}" -o "$XHS_MCP_BIN" && echo "  ✓ MCP Server 下载完成" || echo "  ⚠ MCP Server 下载失败"
+    curl -sL "${XHS_URL}" -o "$XHS_MCP_BIN" && DOWNLOAD_OK=true
   fi
-  chmod +x "$XHS_MCP_BIN" 2>/dev/null || true
+
+  if [ "$DOWNLOAD_OK" = true ] && [ -f "$XHS_MCP_BIN" ]; then
+    chmod +x "$XHS_MCP_BIN"
+    echo "  ✓ MCP Server 下载完成"
+  else
+    echo "  ⚠ MCP Server 下载失败（GitHub 镜像不可达）"
+    echo "    skill 已安装但无法使用，需手动下载二进制："
+    echo "    ${XHS_URL}"
+    rm -f "$XHS_MCP_BIN" 2>/dev/null  # 清除可能的空文件
+  fi
 fi
 
 # 尝试登录（仅在 MCP Server 二进制存在且无 session 时）
