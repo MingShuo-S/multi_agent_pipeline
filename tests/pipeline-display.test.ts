@@ -83,12 +83,12 @@ describe('pipelineDisplay', () => {
     expect(result).toContain('researcher');
   });
 
-  it('有 slot 产出时返回格式化内容', async () => {
+  it('有 slot 时展示 slot + 作者 agent', async () => {
     const state = makeState({
       slot_values: { topic: '南京美食探店', draft: '' },
       slot_history: {
         topic: [{
-          content: '南京美食探店',
+          content: '南京美食探店：红庙→莫愁湖骑行线',
           written_at: '2025-01-01T00:01:00.000Z',
           version: 0,
           agent: 'researcher',
@@ -98,34 +98,45 @@ describe('pipelineDisplay', () => {
     });
     setFile(`${WR}/projects/${UID}/${PID}/state.json`, JSON.stringify(state));
     const result = await pipelineDisplay(UID, PID, WR);
+    expect(result).toContain('📝');
     expect(result).toContain('topic');
-    expect(result).toContain('南京美食探店');
     expect(result).toContain('researcher');
+    expect(result).toContain('南京美食探店：红庙→莫愁湖骑行线');
   });
 
-  it('有 remark 时展示评论和相关内容', async () => {
+  it('有 remark 时展示 remark + 被评论的 slot（来自别的 agent）', async () => {
     const state = makeState({
-      slot_values: { topic: '南京美食探店', draft: '' },
+      current_stage: 1,
+      slot_values: { topic: '南京美食探店', draft: '初稿内容...' },
       slot_history: {
         topic: [{
-          content: '南京美食探店',
+          content: '南京美食探店：红庙→莫愁湖骑行线',
           written_at: '2025-01-01T00:01:00.000Z',
           version: 0,
           agent: 'researcher',
         }],
-        draft: [],
+        draft: [{
+          content: '初稿内容...',
+          written_at: '2025-01-01T00:02:00.000Z',
+          version: 0,
+          agent: 'writer',
+        }],
       },
       remarks: [{
-        agent: 'researcher',
-        content: '建议聚焦科巷美食街',
-        timestamp: '2025-01-01T00:02:00.000Z',
+        agent: 'writer',
+        content: '建议聚焦科巷美食街，路线太散',
+        timestamp: '2025-01-01T00:03:00.000Z',
         version: 0,
       }],
     });
     setFile(`${WR}/projects/${UID}/${PID}/state.json`, JSON.stringify(state));
     const result = await pipelineDisplay(UID, PID, WR);
-    expect(result).toContain('评论');
+    expect(result).toContain('💬');
+    expect(result).toContain('writer');
     expect(result).toContain('建议聚焦科巷美食街');
+    // 被评论的是 researcher 的 topic
+    expect(result).toContain('researcher');
+    expect(result).toContain('南京美食探店：红庙→莫愁湖骑行线');
   });
 
   it('项目不存在时返回错误', async () => {
@@ -141,5 +152,24 @@ describe('pipelineDisplay', () => {
     setFile(`${WR}/projects/${UID}/${PID}/state.json`, JSON.stringify(state));
     const result = await pipelineDisplay(UID, PID, WR);
     expect(result).toContain('已完成');
+  });
+
+  it('slot 内容是 object 时格式化为 JSON', async () => {
+    const state = makeState({
+      slot_values: { topic: { title: '南京美食', audience: '大学生' }, draft: '' },
+      slot_history: {
+        topic: [{
+          content: { title: '南京美食', audience: '大学生' },
+          written_at: '2025-01-01T00:01:00.000Z',
+          version: 0,
+          agent: 'researcher',
+        }],
+        draft: [],
+      },
+    });
+    setFile(`${WR}/projects/${UID}/${PID}/state.json`, JSON.stringify(state));
+    const result = await pipelineDisplay(UID, PID, WR);
+    expect(result).toContain('```json');
+    expect(result).toContain('南京美食');
   });
 });

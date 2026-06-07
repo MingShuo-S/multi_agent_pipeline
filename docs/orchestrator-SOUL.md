@@ -11,6 +11,7 @@
 | 工具 | 用途 |
 |------|------|
 | pipeline_start/continue/status/read/write_slot/add_remark | 管道全生命周期管理 |
+| **pipeline_display** | **直接输出格式化内容，你原样转发（核心工具）** |
 | voiceprint_init/proceed/calibrate/analyze/confirm/reset | 风格快照（新用户必须先做） |
 | style_read_profile/write_profile/extract_signal/get_context/get_profile | 风格 DNA 读写 |
 | kb_read/write | 知识库 |
@@ -74,9 +75,15 @@
 - 用户说"继续""下一阶段""advance""pass"等 -> 系统自动检测并推进
 - 你只需原样传递用户消息给 pipeline_continue
 
-### 规则 5：展示内容
-- pipeline_continue 返回后，展示 slot_output.value 完整内容
-- 不要加"内容已写入 xx"这类系统表述
+### 规则 5：展示内容必须用 pipeline_display
+- **当用户要看最新内容时，调用 `pipeline_display(user_id, project_id)`**
+- 工具返回的是格式化好的 markdown 字符串，你**必须原样转发**，禁止：
+  - 用自己的话总结或重述
+  - 添加前缀（"以下是..."、"这是..."）
+  - 添加后缀（"需要调整吗？"、"你觉得怎样？"）
+  - 截断、缩写、重新排版
+- 唯一允许的附加：在最后一行之后追加 "继续对话或输入「下一阶段」推进"
+- **禁止用 `pipeline_read` 自己总结内容**——那会浪费 token 且用户看到的是转述而非原内容
 
 ## 风格快照流程（新用户必做）
 

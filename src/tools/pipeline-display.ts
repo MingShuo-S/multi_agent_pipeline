@@ -5,13 +5,27 @@ import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager } from './workspace-config.js';
 import { WORKSPACE_ROOT } from '../config.js';
 
+interface SlotEntry {
+  name: string;
+  value: string | object;
+  agent: string;
+  written_at: string;
+  version: number;
+}
+
+interface RemarkEntry {
+  agent: string;
+  content: string;
+  timestamp: string;
+  version: number;
+}
+
 /**
  * pipeline_display - 直接输出最新 slot/remark 内容的 markdown
  *
- * 设计目标：
- * 1. orchestrator 不需要花 token 总结，直接转发此工具的输出
- * 2. 如果最新的是 slot → 展示 slot 内容 + 元信息
- * 3. 如果最新的是 remark → 展示 remark + 被评论的 slot 内容
+ * 两种模式：
+ * 1. 最近是 slot → 展示 slot + 作者 agent
+ * 2. 最近是 remark → 展示 remark + 被评论的 slot + 两个 agent
  */
 export async function pipelineDisplay(
   userId: string,
@@ -42,108 +56,115 @@ export async function pipelineDisplay(
       return '✅ 所有阶段已完成';
     }
 
-    // 找到当前 stage 最近写入的 slot
-    const writableSlots = currentStage.allow_write;
-    let latestSlot: { name: string; value: string | object; agent: string; written_at: string; version: number } | null = null;
+    // 收集所有 slot 的最新写入
+    const allSlots = getAllLatestSlots(state);
 
-    for (const slotName of writableSlots) {
-      const history = state.slot_history[slotName] || [];
-      if (history.length === 0) continue;
-      const last = history[history.length - 1];
-      if (!latestSlot || new Date(last.written_at) > new Date(latestSlot.written_at)) {
-        latestSlot = {
-          name: slotName,
-          value: last.content,
-          agent: last.agent,
-          written_at: last.written_at,
-          version: last.version,
-        };
-      }
-    }
+    // 获取最新 remark
+    const latestRemark = state.remarks.length > 0
+      ? state.remarks[state.remarks.length - 1]
+      : null;
 
-    // 检查是否有最近的 remark
-    const latestRemark = state.remarks.length > 0 ? state.remarks[state.remarks.length - 1] : null;
+    // 判断哪个更新
+    const latestSlot = allSlots.length > 0 ? allSlots[0] : null;
     const remarkTime = latestRemark ? new Date(latestRemark.timestamp).getTime() : 0;
     const slotTime = latestSlot ? new Date(latestSlot.written_at).getTime() : 0;
 
-    // 构建输出
-    const lines: string[] = [];
-
-    // 情况 1: 最近的是 remark（比 slot 更新）
+    // 模式 1: 最近是 remark
     if (latestRemark && remarkTime > slotTime) {
-      lines.push(`💬 **来自 ${latestRemark.agent} 的评论**`);
-      lines.push('');
-      lines.push(`> ${latestRemark.content}`);
-      lines.push('');
-
-      // 尝试找到 remark 评论的相关 slot
-      // 逻辑：remark 的 agent 是当前 stage，找它最近写入的 slot
-      const remarkAgentSlots = findAgentSlots(state, latestRemark.agent, writableSlots);
-      if (remarkAgentSlots.length > 0) {
-        lines.push(`**被评论的内容**（${latestRemark.agent} 的产出）:`);
-        lines.push('');
-        for (const slot of remarkAgentSlots) {
-          const content = formatSlotContent(slot.value);
-          lines.push(`### ${slot.name}`);
-          lines.push(content);
-          lines.push('');
-        }
-      }
-    }
-    // 情况 2: 最近的是 slot
-    else if (latestSlot) {
-      const content = formatSlotContent(latestSlot.value);
-      lines.push(`📝 **${latestSlot.name}**（来自 ${latestSlot.agent}，v${latestSlot.version}）`);
-      lines.push('');
-      lines.push(content);
-      lines.push('');
-
-      // 如果有相关的 remark，也展示
-      const relatedRemarks = state.remarks.filter(r => r.agent === latestSlot!.agent);
-      if (relatedRemarks.length > 0) {
-        lines.push('---');
-        lines.push(`💬 **${latestSlot.agent} 的评论**:`);
-        for (const r of relatedRemarks.slice(-3)) {
-          lines.push(`> ${r.content}`);
-        }
-      }
-    }
-    // 情况 3: 还没有任何产出
-    else {
-      lines.push(`⏳ **${currentStage.id}**（${currentStage.agent}）尚未产出内容`);
-      if (currentStage.description) {
-        lines.push(`任务: ${currentStage.description}`);
-      }
+      return formatRemarkMode(latestRemark, state, allSlots);
     }
 
-    return lines.join('\n');
+    // 模式 2: 最近是 slot
+    if (latestSlot) {
+      return formatSlotMode(latestSlot, state);
+    }
+
+    // 模式 3: 无产出
+    return `⏳ **${currentStage.id}**（${currentStage.agent}）尚未产出内容\n${currentStage.description ? `任务: ${currentStage.description}` : ''}`;
   } catch (err) {
     return `❌ 获取失败: ${String(err)}`;
   }
 }
 
 /**
- * 找到某个 agent 最近写入的 slot
+ * 获取所有 slot 的最新写入，按时间倒序
  */
-function findAgentSlots(
-  state: PipelineState,
-  agent: string,
-  slotNames: string[]
-): Array<{ name: string; value: string | object }> {
-  const result: Array<{ name: string; value: string | object }> = [];
+function getAllLatestSlots(state: PipelineState): SlotEntry[] {
+  const slots: SlotEntry[] = [];
 
-  for (const slotName of slotNames) {
-    const history = state.slot_history[slotName] || [];
-    // 找该 agent 最后一次写入
-    for (let i = history.length - 1; i >= 0; i--) {
-      if (history[i].agent === agent) {
-        result.push({ name: slotName, value: history[i].content });
-        break;
-      }
-    }
+  for (const [name, history] of Object.entries(state.slot_history)) {
+    if (!history || history.length === 0) continue;
+    const last = history[history.length - 1];
+    slots.push({
+      name,
+      value: last.content,
+      agent: last.agent,
+      written_at: last.written_at,
+      version: last.version,
+    });
   }
 
-  return result;
+  // 按时间倒序
+  slots.sort((a, b) => new Date(b.written_at).getTime() - new Date(a.written_at).getTime());
+  return slots;
+}
+
+/**
+ * 格式化 remark 模式：展示 remark + 被评论的 slot
+ *
+ * 输出格式：
+ * 💬 **来自 AgentA 的评论**
+ *
+ * > 评论内容
+ *
+ * ---
+ * 相关内容（来自 AgentB）:
+ * ### slot_name
+ * slot 内容
+ */
+function formatRemarkMode(remark: RemarkEntry, state: PipelineState, allSlots: SlotEntry[]): string {
+  const lines: string[] = [];
+
+  // 展示 remark
+  lines.push(`💬 **来自 ${remark.agent} 的评论**`);
+  lines.push('');
+  lines.push(`> ${remark.content}`);
+  lines.push('');
+
+  // 找被评论的 slot：remark 之前最近写入的 slot（通常是别的 agent 写的）
+  const remarkTime = new Date(remark.timestamp).getTime();
+  const relatedSlots = allSlots.filter(s =>
+    new Date(s.written_at).getTime() < remarkTime && s.agent !== remark.agent
+  );
+
+  if (relatedSlots.length > 0) {
+    lines.push('---');
+    const targetSlot = relatedSlots[0]; // 最近的
+    lines.push(`**相关内容**（来自 ${targetSlot.agent}）:`);
+    lines.push('');
+    lines.push(`### ${targetSlot.name}`);
+    lines.push(formatSlotContent(targetSlot.value));
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * 格式化 slot 模式：展示 slot + 作者
+ *
+ * 输出格式：
+ * 📝 **slot_name**（来自 AgentA，v0）
+ *
+ * slot 内容
+ */
+function formatSlotMode(slot: SlotEntry, state: PipelineState): string {
+  const lines: string[] = [];
+
+  lines.push(`📝 **${slot.name}**（来自 ${slot.agent}，v${slot.version}）`);
+  lines.push('');
+  lines.push(formatSlotContent(slot.value));
+
+  return lines.join('\n');
 }
 
 /**

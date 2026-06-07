@@ -9,7 +9,14 @@ tools:
   # 管道工具 - 用于读取和记录管道的运行状态
   - name: pipeline_read
     description: 读取当前管道中某个 Slot 的内容
-    
+
+  - name: pipeline_display
+    description: |
+      [核心工具] 直接输出最新 slot/remark 的格式化 markdown。
+      orchestrator 应原样转发给用户，不要总结或重述。
+      - 最近是 slot → 展示 slot + 作者 agent
+      - 最近是 remark → 展示 remark + 被评论的 slot + 两个 agent
+
   - name: pipeline_add_remark
     description: 向管道添加评论或备注（如用户反馈、决策记录等）
 
