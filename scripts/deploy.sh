@@ -263,7 +263,7 @@ if command -v openclaw &>/dev/null; then
     "fact-check"
     "fact-checker-cn"
     "social-media-publish"
-    "fox-xiaohongshu-publish"
+    "xiaohongshu-mcp"
   )
   for skill in "${SKILLS[@]}"; do
     if openclaw skills list 2>/dev/null | grep -q "$skill"; then
@@ -289,6 +289,74 @@ if [ -d "${LOCAL_SKILL_SRC}/style-voiceprint" ]; then
     fi
   fi
 fi
+# 7c: xiaohongshu-mcp 外部 MCP Server 二进制
+XHS_MCP_VERSION="latest"
+XHS_MCP_DIR="${OPENCLAW_HOME}/mcp-servers/xiaohongshu"
+XHS_MCP_BIN="${XHS_MCP_DIR}/xiaohongshu-mcp-linux-amd64"
+
+if [ ! -f "$XHS_MCP_BIN" ]; then
+  echo "  → 下载 xiaohongshu-mcp MCP Server..."
+  mkdir -p "${XHS_MCP_DIR}"
+  XHS_URL="https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-mcp-linux-amd64"
+  if command -v wget &>/dev/null; then
+    wget -q "${XHS_URL}" -O "$XHS_MCP_BIN" && echo "  ✓ MCP Server 下载完成" || echo "  ⚠ MCP Server 下载失败"
+  elif command -v curl &>/dev/null; then
+    curl -sL "${XHS_URL}" -o "$XHS_MCP_BIN" && echo "  ✓ MCP Server 下载完成" || echo "  ⚠ MCP Server 下载失败"
+  fi
+  chmod +x "$XHS_MCP_BIN" 2>/dev/null || true
+fi
+
+# 尝试登录（仅首次或 session 过期时）
+LOGIN_BIN="${XHS_MCP_DIR}/xiaohongshu-login-linux-amd64"
+if [ -f "$XHS_MCP_BIN" ] && [ ! -f "${XHS_MCP_DIR}/session.data" ]; then
+  if [ ! -f "$LOGIN_BIN" ]; then
+    LOGIN_URL="https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-login-linux-amd64"
+    echo "  → 下载 xiaohongshu 登录工具..."
+    if command -v wget &>/dev/null; then
+      wget -q "${LOGIN_URL}" -O "$LOGIN_BIN" && echo "  ✓ 登录工具下载完成" || echo "  ⚠ 登录工具下载失败"
+    elif command -v curl &>/dev/null; then
+      curl -sL "${LOGIN_URL}" -o "$LOGIN_BIN" && echo "  ✓ 登录工具下载完成" || echo "  ⚠ 登录工具下载失败"
+    fi
+    chmod +x "$LOGIN_BIN" 2>/dev/null || true
+  fi
+
+  if [ -f "$LOGIN_BIN" ]; then
+    echo ""
+    echo "  ┌─────────────────────────────────────────────┐"
+    echo "  │  登录小红书 ? [y/N]                          │"
+    echo "  │  需要浏览器环境扫描二维码。                    │"
+    echo "  │  如当前终端无显示支持，选 N 后手动登录。        │"
+    echo "  └─────────────────────────────────────────────┘"
+    read -r XHS_LOGIN_CHOICE
+    if [ "$XHS_LOGIN_CHOICE" = "y" ] || [ "$XHS_LOGIN_CHOICE" = "Y" ]; then
+      echo "  → 打开登录页面，请用手机小红书扫码..."
+      "$LOGIN_BIN"
+      if [ $? -eq 0 ]; then
+        echo "  ✓ 登录成功"
+      else
+        echo "  ⚠ 登录失败或无显示支持。可手动登录："
+        echo "    将 ${LOGIN_BIN} 复制到有浏览器的机器执行扫码，"
+        echo "    将 session.data 复制回 ${XHS_MCP_DIR}/"
+      fi
+    else
+      echo "  ℹ 跳过登录。可稍后手动登录："
+      echo "    将 ${LOGIN_BIN} 复制到有浏览器的机器执行扫码，"
+      echo "    将 session.data 复制回 ${XHS_MCP_DIR}/"
+    fi
+  fi
+fi
+
+# 启动 MCP Server（headless）
+if [ -f "$XHS_MCP_BIN" ]; then
+  if ! curl -sf http://localhost:18060/api/v1/login/status > /dev/null 2>&1; then
+    echo "  → 启动 xiaohongshu-mcp MCP Server（headless）..."
+    nohup "$XHS_MCP_BIN" > "${XHS_MCP_DIR}/server.log" 2>&1 &
+    sleep 2
+    echo "  ✓ MCP Server 已启动（PID: $!）"
+  else
+    echo "  ✓ xiaohongshu-mcp MCP Server 运行中"
+  fi
+fi
 echo "✓ 步骤 7 完成"
 
 # ---------- 步骤 8: 生成插件清单（可选）----------
@@ -308,10 +376,15 @@ echo "============================================"
 echo ""
 echo "已部署 ${app_count} 个应用"
 echo ""
-echo "已安装 Skill: web-search, summarize"
+echo "已安装 Skill: multi-search-engine, ai-humanizer, fact-check, fact-checker-cn, social-media-publish, xiaohongshu-mcp"
 echo ""
 echo "下一步："
 echo "  1. openclaw gateway restart"
 echo "  2. 回到 OpenClaw dashboard"
+echo ""
+echo "小红书发布登录："
+echo "  首次部署：${OPENCLAW_HOME}/mcp-servers/xiaohongshu/xiaohongshu-login-linux-amd64"
+echo "  在本机有浏览器的环境执行 → 手机扫码 → session.data 复制回该目录"
+echo "  换号：删除 session.data，重新执行上述步骤"
 echo ""
 echo "验证: openclaw plugins inspect multi-agent-pipeline --runtime"

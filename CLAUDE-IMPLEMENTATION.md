@@ -779,7 +779,7 @@ openclaw gateway restart
 | topic-researcher | 选题调研分身，先聊天再搜索 | qwen3.5-plus | 6 步：出题→分类→搜→下钻→简报→笔记 | multi-search-engine, search-academic, lark-* |
 | content-writer | 写作分身，用用户声音说话 | kimi-k2.5 | 6 步+6 平台指南+风格 DNA 系统+零幻觉 | style-voiceprint, ai-humanizer |
 | quality-reviewer | 质检员，不改原文 | qwen3.5-plus | 4 步+加权评分（7.0 通过）+6 平台清单 | multi-search-engine, fact-check, fact-checker-cn, ai-humanizer |
-| publisher | 发布专家，保真/合规/可回溯 | qwen3.5-plus | 7 步：门禁→平台→规则→适配→确认→发布→记录+待回采 | social-media-publish, fox-xiaohongshu-publish, multi-search-engine |
+| publisher | 发布专家，保真/合规/可回溯 | qwen3.5-plus | 7 步：门禁→平台→规则→适配→确认→发布→记录+待回采 | social-media-publish, xiaohongshu-mcp, multi-search-engine |
 | post-analyst | 效果分析师，闭环最后一环 | kimi-k2.5 | 0（外部回采匹配）+5 步：收集→评估→模式→反馈→归档 | multi-search-engine |
 
 ---

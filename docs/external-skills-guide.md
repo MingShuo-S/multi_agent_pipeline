@@ -253,7 +253,7 @@ openclaw agent --message "开始风格提取"
 | `fact-check` | quality-reviewer | ClawHub | `openclaw skills install fact-check` | 对照可靠来源验证主张、陈述和信息 |
 | `fact-checker-cn` | quality-reviewer | ClawHub | `openclaw skills install fact-checker-cn` | 中文事实核查（多源权威信息 + 视觉取证） |
 | `social-media-publish` | publisher | ClawHub | `openclaw skills install social-media-publish` | 通用浏览器自动化发布到微信公众号、百家号等 |
-| `fox-xiaohongshu-publish` | publisher | ClawHub | `openclaw skills install fox-xiaohongshu-publish` | 小红书专用发布（网页版创作服务平台，评分 3.06） |
+| `xiaohongshu-mcp` | publisher | ClawHub + 外部二进制 | `openclaw skills install xiaohongshu-mcp` | 小红书全功能 MCP（发布+搜索+分析），Go 编译 headless 运行，无 Chrome 依赖 |
 | `style-voiceprint` | content-writer | 本地 | `openclaw skills install ./skills/style-voiceprint --as style-voiceprint` | 10 步引导式风格提取（依赖 pipeline `voiceprint_*` 工具） |
 
 > **注意**：不要安装无维护/低评分的同名 Skill。ClawHub 上有很多 `multi-search-engine` 的分支，统一装官方最新版。
@@ -265,12 +265,12 @@ openclaw agent --message "开始风格提取"
 | topic-researcher | 无 | `multi-search-engine`, `search-academic`, `lark-*`（企业场景） |
 | content-writer | `style-voiceprint` | `ai-humanizer`（写作自检） |
 | quality-reviewer | 无 | `multi-search-engine`, `fact-check`, `fact-checker-cn`, `ai-humanizer` |
-| publisher | 无 | `social-media-publish`, `fox-xiaohongshu-publish`, `multi-search-engine` |
+| publisher | 无 | `social-media-publish`, `xiaohongshu-mcp`, `multi-search-engine` |
 | post-analyst | 无 | `multi-search-engine`（行业基准参考） |
 
 安装命令汇总：
 ```
-openclaw skills install multi-search-engine fact-check fact-checker-cn ai-humanizer social-media-publish fox-xiaohongshu-publish
+openclaw skills install multi-search-engine fact-check fact-checker-cn ai-humanizer social-media-publish xiaohongshu-mcp
 ```
 
 ---
