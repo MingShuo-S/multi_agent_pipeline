@@ -1,7 +1,7 @@
 # 测试报告
 
-> 生成时间: 2026-06-07 16:12
-> 版本: v0.2.0
+> 生成时间: 2026-06-07 18:58
+> 版本: v0.2.1
 > 测试框架: vitest 4.1.8
 
 ---
@@ -12,9 +12,9 @@
 |------|------|
 | 测试文件 | 27 |
 | 测试用例 | 253 |
-| 通过 | 252 ✅ |
-| 失败 | 1 ❌ (pre-existing) |
-| 耗时 | 2.17s |
+| 通过 | 253 ✅ |
+| 失败 | 0 |
+| 耗时 | 2.11s |
 
 ---
 
@@ -351,27 +351,13 @@
 
 ---
 
-### 27. Debug (debug.test.ts) — Pre-existing Failure
+### 27. Debug (debug.test.ts)
 
 | 用例 | 状态 |
 |------|------|
-| show error for advance stage 0 | ❌ |
+| show error for advance stage 0 | ✅ |
 
-**结论**: Pre-existing failure，与本次改动无关
-
----
-
-## 失败用例分析
-
-### debug.test.ts > show error for advance stage 0
-
-**错误**: `expected 'error' to be 'stage_advanced'`
-
-**原因**: 这是一个 pre-existing 的测试失败，与本次 v0.2.0 改动无关。测试期望 `pipelineContinue` 返回 `stage_advanced`，但实际返回 `error`。
-
-**影响**: 不影响核心功能，其他 252 个测试全部通过。
-
-**建议**: 后续修复此测试，或标记为 `test.skip`。
+**结论**: 已修复（v0.2.1），mock filesystem 添加 `unlink` 函数
 
 ---
 
@@ -419,12 +405,11 @@
 
 **整体状态**: ✅ 通过
 
-- 252/253 测试通过 (99.6%)
-- 1 个 pre-existing 失败，与本次改动无关
+- 253/253 测试通过 (100%)
 - P0-1/P0-2/P0-3 新增功能全部通过
 - 核心模块（StateManager、Pipeline、Style）功能正常
+- v0.2.1: debug.test.ts 已修复，253/253 全绿
 
 **建议**:
-1. 修复 debug.test.ts 的 pre-existing failure
-2. 为 Pipeline Continue、Pipeline Flow 等模块补充更完整的测试用例
-3. 考虑添加集成测试，测试完整的管道流程
+1. 为 Pipeline Continue、Pipeline Flow 等模块补充更完整的测试用例
+2. 考虑添加集成测试，测试完整的管道流程
