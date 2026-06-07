@@ -5,7 +5,7 @@ import type { Template, PipelineState, InterruptPoint } from '../types.js';
 import { StateManager } from './state-manager.js';
 import { WorkspaceConfigManager } from '../tools/workspace-config.js';
 import { callSubagent, type SubagentAPI } from '../types.js';
-import { isAdvanceSignal } from '../tools/pipeline-continue.js';
+import { isAdvanceSignal } from './pipeline-utils.js';
 
 export class PipelineRunner {
   private stateManager: StateManager;

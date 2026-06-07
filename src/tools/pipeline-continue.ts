@@ -9,6 +9,7 @@ import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { StyleSystem } from './style-system.js';
 import { detectStyleSignals, extractAndRecordSignals } from './style-signal-detector.js';
 import { WORKSPACE_ROOT } from '../config.js';
+import { isAdvanceSignal } from '../runtime/pipeline-utils.js';
 
 export interface ContinueResult {
   status: 'dialogue_continued' | 'stage_advanced' | 'completed' | 'error';
@@ -41,22 +42,7 @@ export interface ContinueResult {
   remark_history?: Array<{ agent: string; content: string; version: number }>;
 }
 
-const ADVANCE_KEYWORDS = [
-  '下一阶段', '下一步', '推进', 'advance', 'next stage',
-  '完成', '好了', '可以了', '没问题', '继续下一步',
-  '过', 'pass', 'next', 'go ahead', 'continue',
-];
-
-export function isAdvanceSignal(message: string): boolean {
-  const trimmed = message.trim().toLowerCase();
-  return ADVANCE_KEYWORDS.some(kw => {
-    const kwLower = kw.toLowerCase();
-    return trimmed === kwLower
-      || trimmed.startsWith(kwLower + ' ')
-      || trimmed.endsWith(' ' + kwLower)
-      || trimmed.includes(kwLower + kwLower);
-  });
-}
+// isAdvanceSignal 已移到 runtime/pipeline-utils.ts
 
 function buildStatusPanel(state: PipelineState, template: Template, currentStage: number) {
   return {

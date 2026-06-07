@@ -88,7 +88,7 @@ describe('pipelineContinue', () => {
 
   describe('isAdvanceSignal', () => {
     it('精确匹配推进关键词', async () => {
-      const { isAdvanceSignal } = await import('../src/tools/pipeline-continue.js');
+      const { isAdvanceSignal } = await import('../src/runtime/pipeline-utils.js');
       expect(isAdvanceSignal('下一阶段')).toBe(true);
       expect(isAdvanceSignal('next stage')).toBe(true);
       expect(isAdvanceSignal('完成')).toBe(true);
@@ -96,26 +96,26 @@ describe('pipelineContinue', () => {
     });
 
     it('关键词带前缀/后缀', async () => {
-      const { isAdvanceSignal } = await import('../src/tools/pipeline-continue.js');
+      const { isAdvanceSignal } = await import('../src/runtime/pipeline-utils.js');
       expect(isAdvanceSignal('下一阶段 帮帮我')).toBe(true);
       expect(isAdvanceSignal('好了 下一阶段')).toBe(true);
     });
 
     it('非推进消息返回 false', async () => {
-      const { isAdvanceSignal } = await import('../src/tools/pipeline-continue.js');
+      const { isAdvanceSignal } = await import('../src/runtime/pipeline-utils.js');
       expect(isAdvanceSignal('请写一篇文章')).toBe(false);
       expect(isAdvanceSignal('你好')).toBe(false);
       expect(isAdvanceSignal('')).toBe(false);
     });
 
     it('大小写不敏感', async () => {
-      const { isAdvanceSignal } = await import('../src/tools/pipeline-continue.js');
+      const { isAdvanceSignal } = await import('../src/runtime/pipeline-utils.js');
       expect(isAdvanceSignal('Next Stage')).toBe(true);
       expect(isAdvanceSignal('ADVANCE')).toBe(true);
     });
 
     it('非精确匹配时不误判', async () => {
-      const { isAdvanceSignal } = await import('../src/tools/pipeline-continue.js');
+      const { isAdvanceSignal } = await import('../src/runtime/pipeline-utils.js');
       expect(isAdvanceSignal('完成度很高')).toBe(false);
       expect(isAdvanceSignal('下一步计划')).toBe(false);
     });

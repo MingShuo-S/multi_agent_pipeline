@@ -14,6 +14,7 @@ const { mockFs, resetFs, setFile } = vi.hoisted(() => {
         readdir: async (dir: string) => { const prefix = norm(dir) + '/'; return [...files.keys()].filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length).split('/')[0]); },
         access: async (p: string) => { if (!files.has(norm(p))) throw enoent(p); },
         copyFile: async (src: string, dst: string) => { const sk = norm(src); if (files.has(sk)) files.set(norm(dst), files.get(sk)!); },
+        unlink: async (p: string) => { files.delete(norm(p)); },
       },
     },
     setFile: (path: string, content: string) => files.set(norm(path), content),

@@ -279,6 +279,79 @@ export interface InterruptPoint {
 
 ---
 
+## P-Future. 插件配置 TUI
+
+**目标**: 给插件加一个终端交互界面，用户能可视化地创建应用、配模板、部署 agent。
+
+**现状**: 创建新应用流程是手动的——写 template JSON → 改 deploy.sh → 建 SOUL.md → 部署。门槛高。
+
+### 设计思路
+
+一个 CLI 向导（`npx multi-agent-pipeline tui` 或 `bash scripts/init-app.sh`）：
+
+```
+部虾创 — 新应用向导
+====================
+
+步骤 1/5: 应用名称
+> 小红书创作
+
+步骤 2/5: 选择 Agent
+可用 Agent 模板:
+  [x] topic-researcher   选题调研
+  [x] content-writer     内容创作
+  [ ] quality-reviewer   质量审核
+  [ ] publisher          发布排版
+  [ ] post-analyst       回采分析
+  [*] 自定义 Agent       创建新角色
+
+步骤 3/5: 配置模板
+  编辑 stages 顺序 (↑↓ 移动, Space 选中)
+
+步骤 4/5: ClawHub Skills
+  推荐:
+  [x] web-search     (topic-researcher 需要)
+  [ ] summarize      (可选)
+  [x] humanizer-zh   (content-writer 推荐)
+
+步骤 5/5: 部署
+  → 生成 template JSON
+  → 写入 SOUL.md
+  → 注册到 openclaw.json
+  → 安装 skills
+  → 完成
+```
+
+### 实现方式
+
+| 方案 | 优缺点 |
+|------|--------|
+| **A: bash 脚本** (`scripts/init-app.sh`) | 零依赖，用 `read` + `select` 做交互。功能受限但够用。 |
+| **B: Node.js CLI** (`src/cli/tui.ts`) | 可用 `enquirer`/`inquirer` 做漂亮的终端交互。需要加依赖。 |
+| **C: 插件 tool + Web UI** | 通过 openclaw gateway 暴露配置 API，搭一个简单的 Web 界面。太重。 |
+
+**推荐方案 B**: Node.js CLI + `enquirer`（轻量、交互好、和现有构建流程一致）
+
+### 依赖
+
+```bash
+npm install enquirer       # 终端交互提示
+npm install -D @types/enquirer
+```
+
+### 核心功能
+
+1. **应用模板库** — 预置 `xiaohongshu-creation` 等模板，用户可以 fork 修改
+2. **Agent 市场** — 从 ClawHub 搜索/安装 agent SOUL.md 模板
+3. **一键部署** — 生成所有配置 → 写入 openclaw.json → restart gateway
+4. **Skill 推荐** — 根据选中的 agent 自动推荐需要的 ClawHub skills
+
+### 优先级
+
+决赛后。当前手工流程已可用，TUI 是降低使用门槛的体验优化。
+
+---
+
 ## 实现顺序建议
 
 ```
