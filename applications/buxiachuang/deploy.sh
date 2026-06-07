@@ -46,10 +46,6 @@ for agent in "${AGENTS[@]}"; do
   fi
 done
 
-for agent in "${AGENTS[@]}"; do
-  echo "  ✓ ${agent}/SOUL.md"
-done
-
 # ---------- 4. 拷贝模板 ----------
 echo ""
 echo "  --- 拷贝模板 ---"
