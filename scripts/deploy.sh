@@ -275,11 +275,14 @@ if command -v openclaw &>/dev/null; then
     "xiaohongshu-mcp"
   )
   for skill in "${SKILLS[@]}"; do
-    if openclaw skills list 2>/dev/null | grep -qi "$skill"; then
-      echo "  ✓ $skill 已安装"
+    echo "  → 安装 $skill..."
+    INSTALL_OUTPUT=$(openclaw skills install "$skill" 2>&1)
+    if echo "$INSTALL_OUTPUT" | grep -qi "already exists"; then
+      echo "  ✓ $skill 已安装（跳过）"
+    elif [ $? -eq 0 ]; then
+      echo "  ✓ $skill 安装完成"
     else
-      echo "  → 安装 $skill..."
-      openclaw skills install "$skill" 2>&1 && echo "  ✓ $skill 安装完成" || echo "  ⚠ $skill 安装失败（已存在或网络问题，可跳过）"
+      echo "  ⚠ $skill 安装失败（可跳过）"
     fi
   done
 else
