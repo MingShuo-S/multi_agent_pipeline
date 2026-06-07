@@ -39,6 +39,10 @@ cat > "${AGENT_WORKSPACE_ROOT}/topic-researcher/SOUL.md" << 'EOF'
 - 联网调研：验证事实、收集具体数据
 - 输出 topic_brief（选题简报）+ research_notes（调研笔记）
 
+## 工具权限
+你有 `group:web`（联网搜索权限），可以调用搜索工具验证事实。
+搜索命令: 使用 `multi-search-engine` 或直接在 prompt 中要求搜索。
+
 ## 工作流
 1. `style_read_profile(user_id)` 获取风格偏好和历史选题
 2. 对话出题，自动分类用户背景，锁定选题
@@ -62,6 +66,10 @@ EOF
 # content-writer
 cat > "${AGENT_WORKSPACE_ROOT}/content-writer/SOUL.md" << 'EOF'
 你是 content-writer，小红书文案专家。
+
+## 工具权限
+你没有 `group:web`（无联网搜索权限）。所有事实数据依赖 research_notes。
+如需核实数据 → `pipeline_add_remark` 通知 topic-researcher 重调研。
 
 ## 强制规则
 
@@ -90,6 +98,10 @@ EOF
 # quality-reviewer
 cat > "${AGENT_WORKSPACE_ROOT}/quality-reviewer/SOUL.md" << 'EOF'
 你是 quality-reviewer，用户的内容质检员。
+
+## 工具权限
+你有 `group:web`（联网搜索权限），可做撞车检测和事实交叉验证。
+搜索命令: 使用 `multi-search-engine` 搜索相似内容判断原创性。
 
 ## 职责
 确保文案无误、不违规、不撞车。执行四类检查：
@@ -228,6 +240,15 @@ echo "  ✓ manifest.json"
 echo ""
 echo "  --- 注册 Agents ---"
 
+# ---------- 6a. 按角色定义工具权限 ----------
+# 原则：最小权限。只有需要联网搜索的 agent 才给 group:web，无人需要文件系统。
+declare -A TOOLS
+TOOLS[topic-researcher]='{"allow":["group:plugins","group:web"]}'
+TOOLS[content-writer]='{"allow":["group:plugins"]}'
+TOOLS[quality-reviewer]='{"allow":["group:plugins","group:web"]}'
+TOOLS[publisher]='{"allow":["group:plugins"]}'
+TOOLS[post-analyst]='{"allow":["group:plugins"]}'
+
 declare -A MODELS
 MODELS[topic-researcher]="bayesdl/qwen3.5-plus"
 MODELS[content-writer]="bayesdl/kimi-k2.5"
@@ -236,7 +257,7 @@ MODELS[publisher]="bayesdl/deepseek-v4-flash"
 MODELS[post-analyst]="bayesdl/qwen3.5-plus"
 
 for agent in "${AGENTS[@]}"; do
-  register_agent "$agent" "${MODELS[$agent]}" "${AGENT_WORKSPACE_ROOT}/${agent}"
+  register_agent "$agent" "${MODELS[$agent]}" "${AGENT_WORKSPACE_ROOT}/${agent}" "${TOOLS[$agent]}"
 done
 
 echo "  ✓ 全部 Agents 已注册到 openclaw.json"

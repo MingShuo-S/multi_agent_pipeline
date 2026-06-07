@@ -360,7 +360,7 @@ export default defineToolPlugin({
     tool({
       name: 'pipeline_start',
       label: 'pipeline_start',
-      description: '[仅限新项目] 启动全新的接力管道。只应在没有任何正在运行的项目时调用。如果管道已在运行（用户已收到第一位专家的消息），必须使用 pipeline_continue，不要重复调用此工具。',
+      description: '[必须使用] 只要用户提出创作需求（写文章、做调研、生成内容），必须先调此工具启动管道。启动后所有后续消息用 pipeline_continue。如果管道已在运行，必须使用 pipeline_continue，不要重复调用此工具。',
       parameters: Type.Object({
         template_name: Type.String({ description: '管道模板名称（如 xiaohongshu-creation）' }),
         user_id: Type.String({ description: '用户 ID' }),

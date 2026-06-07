@@ -52,11 +52,13 @@ cd - > /dev/null
 # ---------- 步骤 2: 初始化插件工作区 ----------
 echo ""
 echo "=== 步骤 2: 初始化插件工作区 ==="
-mkdir -p "${PLUGIN_WORKSPACE}/templates"
-mkdir -p "${PLUGIN_WORKSPACE}/projects"
-mkdir -p "${PLUGIN_WORKSPACE}/agent-guides"
-mkdir -p "${PLUGIN_WORKSPACE}/applications"
-echo "✓ 插件工作区已初始化: ${PLUGIN_WORKSPACE}"
+# 插件代码的 WORKSPACE_ROOT = <plugin_root>/workspace/ (config.ts)
+PLUGIN_WS="${PLUGIN_DIR}/workspace"
+mkdir -p "${PLUGIN_WS}/templates"
+mkdir -p "${PLUGIN_WS}/projects"
+mkdir -p "${PLUGIN_WS}/agent-guides"
+mkdir -p "${PLUGIN_WS}/_shared"
+echo "✓ 插件工作区已初始化: ${PLUGIN_WS}"
 
 # ---------- 步骤 3: 部署 Orchestrator Agent ----------
 echo ""
@@ -94,13 +96,23 @@ cat > "${AGENT_WORKSPACE_ROOT}/orchestrator/SOUL.md" << 'EOF'
 - 根据用户的场景选择匹配的应用模板
 - 不要不懂装懂——如果应用目录为空，告知用户当前未安装任何应用
 
-### 规则 2：接力模式，不代劳
-- 你不能代替子 Agent 写作、调研、审核或发布
-- 你只能调度、展示、记录用户偏好
+### 规则 2：接力模式，不代劳（违规后果严重）
+- **你不能代替子 Agent 写作、调研、审核或发布**
+- 任何用户产生了创作需求（"写一篇…""帮我改…""调研一下…"）→ **必须先调 pipeline_start 或 pipeline_continue**，不能自己直接干活
+- 违规后果：用户发现你在代劳而不是调度专家，会认为系统不可靠，直接导致项目失败
+- 你只能做三件事：调度（pipeline）、展示（转发子 Agent 输出）、记录（风格/知识库）
 
-### 规则 3：所有用户消息走 pipeline_continue
-- pipeline 启动后，用户所有消息必须用 pipeline_continue
-- 系统自动处理：路由给当前专家 / 推进下一阶段 / 纠正信号拦截
+### 规则 3：所有用户消息走 pipeline_continue（触发条件表）
+- pipeline 启动后，用户所有消息必须用 pipeline_continue，**没有例外**
+- 判断依据：只要用户提的是创作/内容/调研相关需求，一律视为"管道已在运行中"，走 pipeline_continue
+
+| 用户说了什么 | 你的动作 | 说明 |
+|-------------|---------|------|
+| "帮我写一篇关于X的文章" | `pipeline_start`（首次） | 启动管道，传 initial_message |
+| "题目换成Y方向" / "改一下第二段" | `pipeline_continue` | 路由给当前专家 |
+| "下一阶段" / "完成" / "过" | `pipeline_continue`（自动推进） | 推进到下一阶段 |
+| "这个数据不对，核实一下" | `pipeline_continue` | 路由给当前专家，插 remark |
+| "帮我看看有什么模板" | `workspace_config`（管道外） | 应用发现，非创作需求 |
 
 ### 规则 4：展示内容，不加包装
 - 展示 slot_output.value 的完整内容
@@ -233,14 +245,32 @@ if [ "$app_count" -eq 0 ]; then
   echo "   框架核心已部署完成，但没有任何应用 Agents 可用。"
 fi
 
-# ---------- 步骤 7: 生成插件清单（可选）----------
-echo "=== 步骤 7: 生成插件清单 ==="
+# ---------- 步骤 7: 安装 ClawHub Skills ----------
+echo ""
+echo "=== 步骤 7: 安装 ClawHub Skills ==="
+if command -v openclaw &>/dev/null; then
+  SKILLS=("web-search" "summarize")
+  for skill in "${SKILLS[@]}"; do
+    if openclaw skills list 2>/dev/null | grep -q "$skill"; then
+      echo "  ✓ $skill 已安装"
+    else
+      echo "  → 安装 $skill..."
+      openclaw skills install "$skill" 2>&1 && echo "  ✓ $skill 安装完成" || echo "  ⚠ $skill 安装失败（非关键，可跳过）"
+    fi
+  done
+else
+  echo "  ⚠ openclaw 命令不可用，跳过 skill 安装"
+fi
+echo "✓ 步骤 7 完成"
+
+# ---------- 步骤 8: 生成插件清单（可选）----------
+echo "=== 步骤 8: 生成插件清单 ==="
 cd "${PLUGIN_DIR}"
 if command -v openclaw &>/dev/null; then
   openclaw plugins build --entry ./dist/index.js 2>&1 || echo "⚠ plugins build 非关键步骤，跳过"
 fi
 cd - > /dev/null
-echo "✓ 步骤 7 完成"
+echo "✓ 步骤 8 完成"
 
 # ---------- 完成 ----------
 echo ""
@@ -249,6 +279,8 @@ echo "  部虾做框架部署完成！"
 echo "============================================"
 echo ""
 echo "已部署 ${app_count} 个应用"
+echo ""
+echo "已安装 Skill: web-search, summarize"
 echo ""
 echo "下一步："
 echo "  1. openclaw gateway restart"

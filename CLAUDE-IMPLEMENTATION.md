@@ -7,7 +7,9 @@
 
 ## P0 — Must Have (决赛前)
 
-### 0. 环境准备
+编号: P0-1 ~ P0-5
+
+### 环境准备
 
 ```bash
 npm install better-sqlite3   # 用于 Checkpoint 分层
@@ -16,7 +18,7 @@ npm install -D @types/better-sqlite3
 
 ---
 
-### 1. Schema 分离: input/working/output
+### P0-1. Schema 分离: input/working/output
 
 **目标**: 将平面 Slot 改为三层 Schema。
 
@@ -87,7 +89,7 @@ export interface SlotDef {
 
 ---
 
-### 2. Reducer 合并模式
+### P0-2. Reducer 合并模式
 
 **目标**: Slot 级别的合并策略，替代简单的 overwrite。
 
@@ -133,7 +135,7 @@ function applyReducer(current: unknown, update: unknown, reducer: Reducer): unkn
 
 ---
 
-### 3. Interrupt 暂停点
+### P0-3. Interrupt 暂停点
 
 **目标**: 在 pipeline 中定义暂停点，等待用户确认后再推进。
 
@@ -191,7 +193,7 @@ export interface InterruptPoint {
 
 ---
 
-### 4. Voiceprint 迁移: sync-style + loading chain
+### P0-4. Voiceprint 迁移: sync-style + loading chain
 
 **目标**: 将 Voiceprint 改为 Hybrid 方案——Claude Voiceprint 输出 SKILL.md，本地脚本拆到 .styles/。
 
@@ -217,7 +219,9 @@ export interface InterruptPoint {
 
 ## P1 — Should Have
 
-### 5. Checkpoint 分层: JSON → SQLite
+编号: P1-6 ~ P1-8
+
+### P1-6. Checkpoint 分层: JSON → SQLite
 
 **目标**: 增加 SQLite 后端作为可选 checkpoint 存储。
 
@@ -241,7 +245,7 @@ export interface InterruptPoint {
 
 ---
 
-### 6. Prefetch 上下文预取
+### P1-7. Prefetch 上下文预取
 
 **目标**: 在 session 开始或 stage 切换前，自动预取相关上下文。
 
@@ -263,11 +267,13 @@ export interface InterruptPoint {
 
 ## P2 — Nice to Have
 
-### 7. 记忆回采回调 (Hermes-inspired MemoryProvider 接口)
+编号: P2-9 ~ P2-10
+
+### P2-9. 记忆回采回调 (Hermes-inspired MemoryProvider 接口)
 
 将当前 StateManager 的读写抽象为插件式接口，为后续换 SQLite/Honcho 后端做准备。不做完整实现，只定义接口 + 保留当前实现。
 
-### 8. 复合评分排序
+### P2-10. 复合评分排序
 
 在 search-graph.ps1 的嵌入 Python 中将 `np.dot(...)` 替换为 `0.5*sim + 0.3*recency + 0.2*importance`。
 
@@ -280,11 +286,327 @@ P0-1 Schema 分离 → 4h
 P0-2 Reducer → 3h
 P0-3 Interrupt → 6h
 P0-4 Voiceprint → 2h（已有 sync-style.ps1）
-P1-5 Checkpoint 分层 → 4h
-P1-6 Prefetch → 1h（已有脚本）
-P2-7 MemoryProvider 接口 → 2h
-P2-8 复合评分 → 1h
+P0-5 Orchestrator 透传 → 1h（改 SOUL.md）
+P1-6 Checkpoint 分层 → 4h
+P1-7 Prefetch → 1h（已有脚本）
+P1-8 extract-md-summary → 1h（已有 python 脚本）
+P2-9 MemoryProvider 接口 → 2h
+P2-10 复合评分 → 1h
+P-Post-1 Agent SOUL.md 独立化 → 3h（不改代码）
 ```
+
+---
+
+## P0-5. Orchestrator 透传 Sub-Agent 输出
+
+**目标**: 让 orchestrator 不再"总结"子 agent 的回复，而是直接把完整回复展示给用户。
+
+### 根因
+在 `pipeline-continue.ts:477`，`return.message` 已经包含了完整的 agent response：
+```
+message: `${response}\n\n---\n💬 继续与 [${currentStageInfo.agent}] 对话...`,
+```
+但 orchestrator（OpenClaw 主 Agent）收到 `ContinueResult` 后，习惯性地**用自己语言重述**了子 agent 的输出，导致用户只看到"草稿已生成"这类概括，看不到实际内容。
+
+### 改动
+
+**文件**: `docs/orchestrator-SKILL.md`
+
+在"使用示例"→"与 Agent 对话"部分之后，新增一条**强制规则**：
+
+```markdown
+## 强制规则：透传通信
+
+> 你（指挥家）的角色是**信使**，不是**编辑**。
+
+当使用 `pipeline_continue` 或 `route_message` 等工具调用子 Agent 时：
+1. **必须**将子 Agent 的 `message` 完整转发给用户，不做任何总结、缩写、重述
+2. 用户应当看到子 Agent 的原始输出，就像子 Agent 直接对用户说话一样
+3. **唯一允许的附加**：在原始消息末尾追加分隔行和服务信息：
+   ```
+   [子 Agent 的完整原始回复]
+   ---
+   你可以继续对话，或输入"下一阶段"推进。
+   ```
+4. **禁止的行为**：
+   - 不要用"他说"、"Content-writer 表示"等引述
+   - 不要截断长输出
+   - 不要用自己的话复述子 Agent 的内容
+   - 不要省略代码块、表格、列表等格式
+5. 如果子 Agent 的输出包含 `slot_output`，也要在转发时一并展示给用户
+```
+
+### 原理
+orchestrator 相当于一个**透明代理**——它负责路由消息和管理生命周期，但不应该"解释"子 Agent 说了什么。用户需要看到子 Agent 的原始输出来判断质量。
+
+---
+
+## P1-8. extract-md-summary Python 版（Linux 服务器用）
+
+**目标**: 将 `extract-md-summary.ps1`（PowerShell Only）移植为 Python 脚本，在 Linux 服务器上也可运行。
+
+**文件**: `scripts/extract-md-summary.py`
+
+```python
+#!/usr/bin/env python3
+"""
+extract-md-summary.py — 从 .md 文件提取结构化摘要生成 .ai.md 伴侣文件。
+Linux 服务器版。依赖: Python 3.8+（无第三方包）。
+"""
+
+import sys, os, re, hashlib, json
+from pathlib import Path
+from typing import List, Dict, Optional
+
+def extract_sections(content: str) -> List[Dict]:
+    """提取标题层级结构"""
+    sections = []
+    lines = content.split('\n')
+    current = {'level': 0, 'title': 'preamble', 'items': []}
+    
+    for line in lines:
+        m = re.match(r'^(#{1,6})\s+(.+)$', line)
+        if m:
+            if current['items']:
+                sections.append(current)
+            current = {
+                'level': len(m.group(1)),
+                'title': m.group(2).strip(),
+                'items': []
+            }
+        else:
+            stripped = line.strip()
+            if stripped:
+                current['items'].append(stripped)
+    
+    if current['items']:
+        sections.append(current)
+    return sections
+
+def extract_tables(content: str) -> List[Dict]:
+    """提取 markdown 表格"""
+    tables = []
+    lines = content.split('\n')
+    i = 0
+    while i < len(lines):
+        if re.match(r'^\|.+\|$', lines[i]) and i + 1 < len(lines) and re.match(r'^\|[\s\-:|]+\|$', lines[i+1]):
+            headers = [h.strip() for h in lines[i].strip('|').split('|')]
+            rows = []
+            i += 2
+            while i < len(lines) and re.match(r'^\|.+\|$', lines[i]):
+                cells = [c.strip() for c in lines[i].strip('|').split('|')]
+                rows.append(cells)
+                i += 1
+            tables.append({'headers': headers, 'rows': rows})
+        else:
+            i += 1
+    return tables
+
+def extract_links(content: str) -> List[Dict]:
+    """提取 [text](url) 链接"""
+    links = []
+    for m in re.finditer(r'\[([^\]]+)\]\(([^)]+)\)', content):
+        if m.group(2).startswith('http'):
+            links.append({'text': m.group(1), 'url': m.group(2)})
+    return links
+
+def generate_summary(md_path: Path) -> str:
+    content = md_path.read_text(encoding='utf-8')
+    
+    sections = extract_sections(content)
+    tables = extract_tables(content)
+    links = extract_links(content)
+    
+    # 提取文件头元信息
+    title = sections[0]['title'] if sections else md_path.stem
+    first_para = ''
+    for s in sections:
+        for item in s['items']:
+            if item and not item.startswith('>') and not item.startswith('|'):
+                first_para = item[:200]
+                break
+        if first_para:
+            break
+    
+    # 提取关键数字/日期
+    dates = re.findall(r'\d{4}-\d{2}-\d{2}', content)
+    
+    # 构建摘要
+    summary = f"# {title} (.ai.md)\n\n"
+    if first_para:
+        summary += f"> {first_para}\n\n"
+    if dates:
+        summary += f"**日期**: {dates[0]}\n\n"
+    
+    # 表格摘要
+    for t in tables:
+        summary += f"**{' | '.join(t['headers'])}**\n\n"
+        for row in t['rows'][:5]:
+            summary += f"- {' | '.join(row)}\n"
+        summary += '\n'
+    
+    # 链接
+    if links:
+        summary += "## 参考链接\n\n"
+        for link in links[:10]:
+            summary += f"- [{link['text']}]({link['url']})\n"
+    
+    return summary.strip()
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: extract-md-summary.py <file.md> [file2.md ...]")
+        sys.exit(1)
+    
+    for arg in sys.argv[1:]:
+        md_path = Path(arg)
+        if not md_path.exists() or md_path.suffix.lower() != '.md':
+            print(f"SKIP {arg}: not a .md file or not found")
+            continue
+        
+        summary = generate_summary(md_path)
+        
+        # Write to _ai/{name}.ai.md
+        ai_dir = md_path.parent / '_ai'
+        ai_dir.mkdir(exist_ok=True)
+        ai_path = ai_dir / f"{md_path.stem}.ai.md"
+        ai_path.write_text(summary + '\n', encoding='utf-8')
+        print(f"  OK {ai_path}")
+
+if __name__ == '__main__':
+    main()
+```
+
+**使用方式**:
+```bash
+# Linux 服务器
+python3 scripts/extract-md-summary.py docs/*.md
+
+# 批量递归
+find . -name '*.md' -not -name '*.ai.md' -exec python3 scripts/extract-md-summary.py {} \;
+```
+
+---
+
+## P-Deploy-1. ClawHub Skills（deploy.sh 已自动安装）
+
+**现状**: 子 agent（topic-researcher, quality-reviewer）只有 `group:plugins` 权限，没有搜索工具。
+`multi-search-engine` 是 opencode 的本地 skill，在 openclaw 子 agent 上下文中不生效。
+
+已通过 `scripts/deploy.sh` 步骤 7 自动安装:
+
+| 技能 | 安装方式 | 用途 |
+|------|---------|------|
+| **web-search** | `openclaw skills install web-search` | DuckDuckGo API 搜索。topic-researcher 调研 + quality-reviewer 撞车检测 |
+| **summarize** | `openclaw skills install summarize` | 长文本摘要。topic-researcher 提炼搜索结果 |
+
+**不需要 SSH 手动操作** — `bash scripts/deploy.sh` 运行时会自动执行安装。如果服务器上 `openclaw` 命令不可用则跳过。
+
+**关于 web_fetch 工具**: 不额外添加。ClawHub 的 `web-search` skill 已覆盖搜索需求。如需抓取特定 URL，子 agent 可用 `web_fetch`（openclaw 内置工具，`group:plugins` 权限已包括）。如果发现 `web_fetch` 在子 agent 上下文中不可用，再考虑注册为插件 tool。
+
+---
+
+## P-Deploy-2. Agent SOUL.md 独立化
+
+**目标**: 每个 agent 既能在 pipeline 内跑，也能单独拿出来直接用。
+**现状**: SOUL.md 只写了 pipeline 内的工作流，脱离 pipeline 没法用。
+
+### 设计模式：双模式 SOUL.md
+
+每个 agent 的 SOUL.md 包含两个工作流章节：
+- **pipeline 模式**（当前已有）：读 slot → 干活 → 写 slot
+- **独立模式**（新加）：直接对话 → 干同样的话 → 输出到对话框
+
+**不依赖工具可用性检测**（LLM 不可靠）。而是 SOUL.md 里同时列出两种模式，让 orchestrator 告诉 agent 当前处于哪种模式。orchestrator 在 `pipeline_continue` 时注入 "当前模式: pipeline"，在 `route_message` 直接聊天时注入 "当前模式: standalone"。
+
+```
+## 工作流（pipeline 模式）
+当 orchestrator 说"当前模式: pipeline"时执行此流程：
+读 slot → 干活 → 写 slot
+
+## 工作流（独立模式）
+当 orchestrator 说"当前模式: standalone"时执行此流程：
+直接问用户 → 干活 → 输出到对话框 → kb_write 记新信息
+```
+
+### P4.1 topic-researcher
+
+| 维度 | pipeline 模式 | 独立模式 |
+|------|-------------|---------|
+| 输入 | 读 topic_brief slot（或 initial_message） | 直接问用户"想写什么？目标读者？" |
+| 调研 | 用 web-search 搜，写 research_notes slot | 用 web-search 搜，输出结构化报告到对话框 |
+| 输出 | `pipeline_write_slot("topic_brief")` + `pipeline_write_slot("research_notes")` | 直接展示选题简报 + 调研笔记，等用户确认 |
+| 记忆 | 无（由 pipeline 管理） | 自己调 `kb_read`/`kb_write` 读写用户画像 |
+
+**独立模式典型对话**:
+```
+用户: 帮我调研一下南京烟火气路线
+agent: 目标读者是谁？（学生/游客/本地人）
+用户: 大学生周末逛
+agent: [搜] → [整理] → 出选题简报 + 调研笔记
+用户: 不错，收下
+agent: kb_write("用户偏好南京本地生活类选题")
+```
+
+### P4.2 content-writer
+
+| 维度 | pipeline 模式 | 独立模式 |
+|------|-------------|---------|
+| 输入 | 读 topic_brief + research_notes | 用户直接给主题/文件/粘贴内容 |
+| 写作 | 按风格 DNA 写 draft_content | 按用户当前对话语气写 |
+| 修正 | `style_extract_signal` → 重写 → write_slot | `style_extract_signal` → 重写 → 输出到对话框 |
+| 自查 | 无搜索权限，靠 research_notes | 同上 + 可要求用户提供更多上下文 |
+| 风格 | InjectionLayer 已注入 | 自己调 `style_read_profile` + `kb_read` 获取用户风格 |
+
+**独立模式典型对话**:
+```
+用户: 帮我写一篇关于南京烟火气的文章
+agent: 有选题方向吗？还是我直接按你之前的风格来？
+       [检测：新用户 vs 老用户]
+       [老用户 → 读 style DNA + kb]
+       [新用户 → "先写一段给我看看你的风格"]
+用户: 随便写一段
+agent: [分析样本 → 出初稿]
+用户: 太啰嗦了，短一点
+agent: style_extract_signal("用户偏好短句") → 重写
+```
+
+### P4.3 quality-reviewer
+
+| 维度 | pipeline 模式 | 独立模式 |
+|------|-------------|---------|
+| 输入 | 读 draft_content + research_notes | 用户粘贴/上传内容 |
+| 检查 | 事实/原创/合规/质量 四类 | 同四类检查，但主动问用户平台规则 |
+| 搜索 | web-search 做撞车检测 | 同 |
+| 输出 | write_slot("review_feedback") | 直接输出审核报告，逐条 P0/P1/P2 |
+
+### P4.4 publisher
+
+| 维度 | pipeline 模式 | 独立模式 |
+|------|-------------|---------|
+| 输入 | 读 draft_content + review_feedback | 用户粘贴内容，或说"帮我发到XX平台" |
+| 处理 | 标题优化 + 标签 + 格式化 | 同 + 问用户目标平台 |
+| 输出 | write_slot("final_output") | 直接展示，用户手动复制发布 |
+
+### P4.5 post-analyst
+
+| 维度 | pipeline 模式 | 独立模式 |
+|------|-------------|---------|
+| 输入 | 读 final_output，等用户提供数据 | 直接问"最近发了什么？数据怎样？" |
+| 分析 | 对比历史基线 → 提炼洞察 | 同 + 自己从 kb 读历史数据做对比 |
+| 输出 | write_slot("performance_insights") | 出分析报告，自动 kb_write 记录 |
+
+### 实现清单
+
+1. **改每个 agent 的 SOUL.md**（`applications/buxiachuang/deploy.sh` 中内嵌部分）
+   - 加模式检测头（工具可用性判断）
+   - 加独立模式工作流章节
+   - 加独立模式对话示例
+2. **改 shared-agent-guide.md** — 补充独立模式下的工具使用说明
+3. **不改代码** — SOUL.md 级别的改造，不需要动 TypeScript
+
+### 优先级
+P4.1 topic-researcher → P4.2 content-writer → P4.3 quality-reviewer → P4.4 publisher → P4.5 post-analyst
 
 ---
 
@@ -300,3 +622,5 @@ P2-8 复合评分 → 1h
 | 完整对比表 | `AI工作区\调研\理科\07-部虾做部虾创创新点竞品调研.md` §3 |
 | Dual Readability | `AI工作区\AI笔记\03-人与AI双重可读性设计原则.md` |
 | deploy.sh | `applications/buxiachuang/deploy.sh` |
+| ClawHub | https://clawhub.ai |
+| web-search skill | https://clawhub.ai/skills/web-search |

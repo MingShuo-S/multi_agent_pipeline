@@ -51,7 +51,7 @@ detect_openclaw_home() {
 }
 
 # ---------- 子 Agent 标准工具权限 ----------
-readonly SUB_AGENT_TOOLS='{"allow":["group:plugins","group:fs","group:web"]}'
+readonly SUB_AGENT_TOOLS='{"allow":["group:plugins"]}'
 
 # ---------- 注册 Agent 到 openclaw.json ----------
 # 用法: register_agent <agent_id> <model> <workspace_path> [tools_json]
