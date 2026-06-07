@@ -41,6 +41,9 @@ test-*.sh
 *.test.js
 *.spec.js
 
+# Workspace data (user-specific, generated at runtime)
+workspace/
+
 # Deploy scripts (temporary)
 deploy-*.sh
 deploy-*.ps1

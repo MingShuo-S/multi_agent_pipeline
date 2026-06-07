@@ -1,0 +1,86 @@
+{
+  "name": "demo-template",
+  "description": "小红书创作接力流水线",
+  "mode": "relay",
+  "stages": [
+    {
+      "id": "选题调研",
+      "agent": "topic-researcher",
+      "checkpoint": false,
+      "allow_read": [
+        "*"
+      ],
+      "allow_write": [
+        "topic"
+      ]
+    },
+    {
+      "id": "网络调研",
+      "agent": "web-researcher",
+      "checkpoint": false,
+      "allow_read": [
+        "topic"
+      ],
+      "allow_write": [
+        "research_data"
+      ]
+    },
+    {
+      "id": "内容创作",
+      "agent": "content-writer",
+      "checkpoint": true,
+      "allow_read": [
+        "topic",
+        "research_data"
+      ],
+      "allow_write": [
+        "draft"
+      ]
+    },
+    {
+      "id": "质量审核",
+      "agent": "quality-reviewer",
+      "checkpoint": true,
+      "allow_read": [
+        "draft"
+      ],
+      "allow_write": [
+        "review"
+      ]
+    },
+    {
+      "id": "发布",
+      "agent": "publisher",
+      "checkpoint": false,
+      "allow_read": [
+        "draft",
+        "review"
+      ],
+      "allow_write": [
+        "final"
+      ]
+    }
+  ],
+  "slots": {
+    "topic": {
+      "type": "text",
+      "default": ""
+    },
+    "research_data": {
+      "type": "text",
+      "default": ""
+    },
+    "draft": {
+      "type": "text",
+      "default": ""
+    },
+    "review": {
+      "type": "text",
+      "default": ""
+    },
+    "final": {
+      "type": "text",
+      "default": ""
+    }
+  }
+}

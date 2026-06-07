@@ -1,6 +1,6 @@
 {
   "name": "xiaohongshu-creation",
-  "description": "小红书笔记创作：选题对话 → 调研验证 → 写作打磨 → 审核 → 发布",
+  "description": "小红书笔记创作：选题调研 → 写作打磨 → 审核 → 发布 → 回采",
   "mode": "relay",
   "author_label": "本文由 [用户] 与部虾创专家团联合创作",
   "stages": [
@@ -9,16 +9,8 @@
       "agent": "topic-researcher",
       "checkpoint": true,
       "allow_read": ["*"],
-      "allow_write": ["topic_brief"],
-      "description": "与用户对话，确定选题方向和目标受众"
-    },
-    {
-      "id": "web-research",
-      "agent": "web-researcher",
-      "checkpoint": true,
-      "allow_read": ["topic_brief"],
-      "allow_write": ["research_notes"],
-      "description": "调研验证：收集路线、价格、交通等具体数据"
+      "allow_write": ["topic_brief", "research_notes"],
+      "description": "选题调研：对话确定选题 + 联网搜索验证数据"
     },
     {
       "id": "draft-writing",
@@ -43,6 +35,14 @@
       "allow_read": ["draft_content", "review_feedback"],
       "allow_write": ["final_output"],
       "description": "发布准备：标题优化 + 标签生成 + 平台格式化"
+    },
+    {
+      "id": "post-analysis",
+      "agent": "post-analyst",
+      "checkpoint": false,
+      "allow_read": ["final_output"],
+      "allow_write": ["performance_insights"],
+      "description": "回采分析：发布后效果跟踪 + 策略洞察（不作为默认流程）"
     }
   ],
   "slots": {
@@ -50,7 +50,8 @@
     "research_notes": { "type": "text", "default": "" },
     "draft_content": { "type": "text", "default": "" },
     "review_feedback": { "type": "text", "default": "" },
-    "final_output": { "type": "text", "default": "" }
+    "final_output": { "type": "text", "default": "" },
+    "performance_insights": { "type": "text", "default": "" }
   },
   "platforms": [
     {

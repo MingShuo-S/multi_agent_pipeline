@@ -1,27 +1,11 @@
 // src/runtime/pipeline-runner.ts - 接力模式运行时
 
 import readline from 'readline';
-import type { Template, PipelineState, ToolContext, PipelineMode } from '../types.js';
+import type { Template, PipelineState } from '../types.js';
 import { StateManager } from './state-manager.js';
-import { PromptBuilder } from './prompt-builder.js';
 import { WorkspaceConfigManager } from '../tools/workspace-config.js';
-import { MemoryManager } from '../tools/memory.js';
-import type { SubagentAPI } from '../types.js';
-import { callSubagent } from '../types.js';
-
-const ADVANCE_KEYWORDS = [
-  '下一阶段', '下一步', '推进', 'advance', 'next stage',
-  '完成', '好了', '可以了', '没问题', '继续下一步',
-  '过', 'pass', 'next', 'go ahead', 'continue',
-];
-
-function isAdvanceSignal(message: string): boolean {
-  const trimmed = message.trim().toLowerCase();
-  return ADVANCE_KEYWORDS.some(kw => {
-    const kwLower = kw.toLowerCase();
-    return trimmed === kwLower || trimmed.startsWith(kwLower + ' ') || trimmed.endsWith(' ' + kwLower);
-  });
-}
+import { callSubagent, type SubagentAPI } from '../types.js';
+import { isAdvanceSignal } from '../tools/pipeline-continue.js';
 
 export class PipelineRunner {
   private stateManager: StateManager;

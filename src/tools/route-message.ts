@@ -36,7 +36,7 @@ export class RouteMessageHandler {
       const configManager = new WorkspaceConfigManager(context.workspace_root);
       template = await configManager.readTemplate(state.template_name);
     } catch (err: any) {
-      if (err?.code === 'ENOENT') {
+      if (err?.code === 'ENOENT' || err?.message?.includes('ENOENT')) {
         state = null; template = null;
       } else {
         throw err;
@@ -60,9 +60,13 @@ export class RouteMessageHandler {
 
     // 5. 调用 Agent（使用复合 sessionKey 隔离项目/用户会话）
     const sessionKey = `${targetAgent}:${context.user_id}:${context.project_id}`;
-    const agentResponse = await callSubagent(api, sessionKey, systemPrompt);
-    if (agentResponse) {
-      return agentResponse;
+    try {
+      const agentResponse = await callSubagent(api, sessionKey, systemPrompt);
+      if (agentResponse) {
+        return agentResponse;
+      }
+    } catch {
+      // 无 subagent API 时降级
     }
 
     return `[模拟] ${targetAgent} 收到消息并处理中...\n当前暂不支持实际 Agent 调用（api.runtime.subagent 不可用）`;
@@ -110,24 +114,4 @@ export async function routeMessage(
 /**
  * 为工具导出标准的 OpenClaw 工具定义
  */
-export const routeMessageTool = {
-  route_message: {
-    id: 'route_message',
-    name: 'route_message',
-    description: '路由用户消息到指定 Agent（仅供 orchestrator 使用）',
-    parameters: {
-      type: 'object',
-      properties: {
-        target_agent: {
-          type: 'string',
-          description: '目标 Agent 的名称',
-        },
-        message: {
-          type: 'string',
-          description: '用户消息内容',
-        },
-      },
-      required: ['target_agent', 'message'],
-    },
-  },
-};
+

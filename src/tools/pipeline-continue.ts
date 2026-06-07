@@ -1,10 +1,13 @@
-// src/tools/pipeline-continue.ts - 接力模式核心：对话路由 + 阶段推进
+// src/tools/pipeline-continue.ts - 接力模式核心：对话路由 + 阶段推进 + 错误恢复
+// 风格信号检测已独立到 style-signal-detector.ts
 
 import { PipelineState, Template, callSubagent } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager, initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
+import { StyleSystem } from './style-system.js';
+import { detectStyleSignals, extractAndRecordSignals } from './style-signal-detector.js';
 import { WORKSPACE_ROOT } from '../config.js';
 
 export interface ContinueResult {
@@ -44,11 +47,10 @@ const ADVANCE_KEYWORDS = [
   '过', 'pass', 'next', 'go ahead', 'continue',
 ];
 
-function isAdvanceSignal(message: string): boolean {
+export function isAdvanceSignal(message: string): boolean {
   const trimmed = message.trim().toLowerCase();
   return ADVANCE_KEYWORDS.some(kw => {
     const kwLower = kw.toLowerCase();
-    // 精确匹配、起始匹配（带空格）、结束匹配（带空格）、包含匹配（重复关键词如"下一阶段下一阶段"）
     return trimmed === kwLower
       || trimmed.startsWith(kwLower + ' ')
       || trimmed.endsWith(' ' + kwLower)
@@ -76,6 +78,9 @@ function buildStatusPanel(state: PipelineState, template: Template, currentStage
   };
 }
 
+const MAX_RETRIES = 2;
+const AGENT_TIMEOUT_MS = 180000;
+
 async function executeDialogue(
   stateManager: StateManager,
   state: PipelineState,
@@ -85,9 +90,15 @@ async function executeDialogue(
   workspaceRoot: string,
   message: string,
   api?: { runtime: { subagent: import('../types.js').SubagentAPI } }
-): Promise<{ response: string; slotName: string }> {
+): Promise<{ response: string; slotName: string; retries: number }> {
   const stage = template.stages[state.current_stage];
   if (!stage) throw new Error(`当前阶段 ${state.current_stage} 不存在`);
+
+  // 拦截：检测用户消息中的风格信号
+  const signals = detectStyleSignals(message);
+  if (signals.length > 0) {
+    await extractAndRecordSignals(workspaceRoot, userId, signals, stage.agent);
+  }
 
   const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
   const memoryManager = new MemoryManager(workspaceRoot, userId, stage.agent);
@@ -98,14 +109,65 @@ async function executeDialogue(
   );
 
   const sessionKey = `${stage.agent}:${userId}:${projectId}`;
-  const agentResponse = await callSubagent(api, sessionKey, prompt);
-
   const slotName = stage.allow_write[0];
-  if (slotName) {
-    await stateManager.updateSlot(slotName, agentResponse, stage.agent);
+
+  // 错误恢复：重试逻辑
+  let lastError = '';
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const agentResponse = await callSubagent(api, sessionKey, prompt, AGENT_TIMEOUT_MS);
+
+      // 错误恢复：空 slot 检测
+      const trimmed = agentResponse.trim();
+      if (!trimmed || trimmed.length < 10) {
+        lastError = `agent 产出过短 (${trimmed.length} 字符)`;
+        if (attempt < MAX_RETRIES) {
+          const sys = new StyleSystem(workspaceRoot, userId);
+          await sys.appendInsight(`[内部] 第 ${attempt} 次产出过短，重试`, stage.agent);
+          continue;
+        }
+        throw new Error(`agent 产出过短，已重试 ${MAX_RETRIES} 次`);
+      }
+
+      if (slotName) {
+        await stateManager.updateSlot(slotName, agentResponse, stage.agent);
+      }
+
+      return { response: agentResponse, slotName, retries: attempt - 1 };
+
+    } catch (err: any) {
+      lastError = `${err.message || String(err) || '未知错误'}`;
+      if (attempt < MAX_RETRIES) {
+        const sys = new StyleSystem(workspaceRoot, userId);
+        await sys.appendInsight(`[内部] 第 ${attempt} 次调用失败: ${lastError}，重试`, stage.agent);
+        continue;
+      }
+      // 标记当前 stage 为 failed
+      await stateManager.markStageFailed(stage.agent, lastError);
+      throw new Error(`agent [${stage.agent}] 调用失败，已重试 ${MAX_RETRIES} 次: ${lastError}`);
+    }
   }
 
-  return { response: agentResponse, slotName };
+  throw new Error('executeDialogue 意外退出');
+}
+
+/**
+ * 检测连续否定模式
+ */
+async function detectConsecutiveNegation(
+  workspaceRoot: string,
+  userId: string,
+  currentAgent: string,
+): Promise<number> {
+  const styleSystem = new StyleSystem(workspaceRoot, userId);
+  const insights = await styleSystem.readInsights();
+  if (!insights) return 0;
+
+  // 统计最近 10 条洞察中的纠正/禁止信号
+  const lines = insights.split('\n').filter(l => l.includes('纠正') || l.includes('禁止'));
+  const recent = lines.slice(-10);
+  const negationCount = recent.filter(l => l.includes('(correction)') || l.includes('(forbidden)')).length;
+  return negationCount;
 }
 
 async function autoAdvanceNonCheckpoint(
@@ -122,7 +184,7 @@ async function autoAdvanceNonCheckpoint(
   while (nextStage < template.stages.length) {
     const stage = template.stages[nextStage];
     if (stage.checkpoint) break;
-    // 自动执行非 checkpoint 阶段
+
     const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
     const prompt = await promptBuilder.buildPipelinePrompt(
       stage.agent, template, s, {} as any, '请根据已有信息完成你的工作'
@@ -156,9 +218,6 @@ async function autoAdvanceNonCheckpoint(
 
 /**
  * pipeline_continue - 接力模式主入口
- * 检测用户消息是否为"推进"信号：
- *   - 是 → 推进到下一阶段
- *   - 否 → 路由给当前专家对话
  */
 export async function pipelineContinue(
   userId: string,
@@ -193,19 +252,13 @@ export async function pipelineContinue(
       template = await configManager.readTemplate(state.template_name);
     }
 
-    // 判断是否推进信号
     if (isAdvanceSignal(message)) {
-      // 完成当前阶段
       await stateManager.completeCurrentStage();
-
-      // 重新加载状态
       state = await stateManager.load();
 
-      // 推进到下一阶段
       const oldStage = state.current_stage;
       state = await stateManager.advanceStage();
 
-      // 自动推进不需要 checkpoints 的阶段
       state = await autoAdvanceNonCheckpoint(stateManager, template, state, userId, projectId, root, api);
 
       if (state.current_stage >= template.stages.length) {
@@ -233,7 +286,6 @@ export async function pipelineContinue(
       };
     }
 
-    // 不是推进信号 → 路由给当前专家对话
     if (state.current_stage >= template.stages.length) {
       return {
         status: 'completed', action_taken: 'completed',
@@ -243,25 +295,34 @@ export async function pipelineContinue(
       };
     }
 
-    const { response, slotName } = await executeDialogue(
+    const { response, slotName, retries } = await executeDialogue(
       stateManager, state, template, userId, projectId, root, message, api
     );
 
-    const currentStage = template.stages[state.current_stage];
+    // 错误恢复：连续否定检测
+    const currentStageInfo = template.stages[state.current_stage];
+    const negationCount = await detectConsecutiveNegation(root, userId, currentStageInfo.agent);
+    let warning = '';
+    if (negationCount >= 3 && retries > 0) {
+      warning = '\n\n⚠️ 检测到连续否定，建议暂停并检查风格配置。用 style_read_profile 查看当前风格 DNA。';
+      const negStyleSystem = new StyleSystem(root, userId);
+      await negStyleSystem.appendInsight(`[错误恢复] 连续否定: ${negationCount} 次，建议检查风格配置`, currentStageInfo.agent);
+    }
+
     return {
       status: 'dialogue_continued', action_taken: 'dialogue',
       current_stage: state.current_stage,
-      current_stage_name: currentStage.id,
-      current_agent: currentStage.agent,
-      stage_description: currentStage.description,
+      current_stage_name: currentStageInfo.id,
+      current_agent: currentStageInfo.agent,
+      stage_description: currentStageInfo.description,
       total_stages: template.stages.length,
       slot_output: {
         slot_name: slotName,
         value: response,
-        owner: currentStage.agent,
+        owner: currentStageInfo.agent,
         version: (state.slot_history[slotName]?.length || 1) - 1,
       },
-      message: `${response}\n\n---\n💬 继续与 [${currentStage.agent}] 对话，或输入 "下一阶段" 推进。`,
+      message: `${response}\n\n---\n💬 继续与 [${currentStageInfo.agent}] 对话，或输入 "下一阶段" 推进。${warning}`,
       status_panel: buildStatusPanel(state, template, state.current_stage),
       remark_history: state.remarks.map(r => ({
         agent: r.agent, content: r.content, version: r.version,
@@ -278,26 +339,3 @@ export async function pipelineContinue(
   }
 }
 
-export const pipelineContinueTool = {
-  id: 'pipeline_continue',
-  name: 'pipeline_continue',
-  description: '接力模式：将用户消息路由给当前阶段专家对话，或检测"下一阶段"信号推进管道。',
-  parameters: {
-    type: 'object',
-    properties: {
-      user_id: {
-        type: 'string',
-        description: '用户 ID',
-      },
-      project_id: {
-        type: 'string',
-        description: '项目 ID',
-      },
-      message: {
-        type: 'string',
-        description: '用户的消息内容。如果内容为"下一阶段"/"advance"等推进关键词，则推进到下一个阶段。',
-      },
-    },
-    required: ['user_id', 'project_id', 'message'],
-  },
-};

@@ -5,14 +5,50 @@ import path from 'path';
 import { Template } from '../types.js';
 import { SEED_TEMPLATES_DIR } from '../config.js';
 
-// 标准可用 Agent 名称（创建模板时只能使用这些）
-const KNOWN_AGENTS = [
-  'topic-researcher',
-  'web-researcher',
-  'content-writer',
-  'quality-reviewer',
-  'publisher',
-];
+/**
+ * 校验模板 JSON 结构完整性
+ * 返回错误字符串数组，空数组表示通过
+ */
+export function validateTemplate(data: unknown): string[] {
+  const errors: string[] = [];
+  if (!data || typeof data !== 'object') return ['模板必须是对象'];
+
+  const t = data as Record<string, unknown>;
+
+  if (!t.name || typeof t.name !== 'string') errors.push('缺少 name (string)');
+  if (!t.description || typeof t.description !== 'string') errors.push('缺少 description (string)');
+
+  // stages
+  if (!Array.isArray(t.stages)) {
+    errors.push('缺少 stages (array)');
+  } else if (t.stages.length === 0) {
+    errors.push('stages 不能为空');
+  } else {
+    for (let i = 0; i < t.stages.length; i++) {
+      const s = t.stages[i] as Record<string, unknown>;
+      if (!s || typeof s !== 'object') { errors.push(`stages[${i}] 必须是对象`); continue; }
+      if (!s.id || typeof s.id !== 'string') errors.push(`stages[${i}] 缺少 id (string)`);
+      if (!s.agent || typeof s.agent !== 'string') errors.push(`stages[${i}] 缺少 agent (string)`);
+      if (typeof s.checkpoint !== 'boolean') errors.push(`stages[${i}] 缺少 checkpoint (boolean)`);
+      if (!Array.isArray(s.allow_read)) errors.push(`stages[${i}] 缺少 allow_read (string[])`);
+      if (!Array.isArray(s.allow_write)) errors.push(`stages[${i}] 缺少 allow_write (string[])`);
+    }
+  }
+
+  // slots
+  if (!t.slots || typeof t.slots !== 'object') {
+    errors.push('缺少 slots (object)');
+  } else {
+    for (const [key, slot] of Object.entries(t.slots)) {
+      const s = slot as Record<string, unknown>;
+      if (!s || typeof s !== 'object') { errors.push(`slots.${key} 必须是对象`); continue; }
+      if (!['text', 'json', 'file'].includes(s.type as string)) errors.push(`slots.${key} 缺少有效的 type (text|json|file)`);
+      if (s.default === undefined) errors.push(`slots.${key} 缺少 default`);
+    }
+  }
+
+  return errors;
+}
 
 export class WorkspaceConfigManager {
   constructor(private workspaceRoot: string) {}
@@ -32,8 +68,14 @@ export class WorkspaceConfigManager {
     const templatePath = path.join(this.workspaceRoot, 'templates', `${cleanName}.json`);
     try {
       const content = await fs.readFile(templatePath, 'utf-8');
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      const errs = validateTemplate(parsed);
+      if (errs.length > 0) {
+        throw new Error(`模板 '${templateName}' 结构无效:\n  ${errs.join('\n  ')}`);
+      }
+      return parsed;
     } catch (err) {
+      if (err instanceof Error && err.message.includes('结构无效')) throw err;
       throw new Error(
         `模板 '${templateName}' 不存在于 ${path.join(this.workspaceRoot, 'templates')}。` +
         `请先调用 workspace_config 的 init_workspace 操作初始化工作区，` +
@@ -45,22 +87,11 @@ export class WorkspaceConfigManager {
   async writeTemplate(templateName: string, template: Template): Promise<void> {
     const templatePath = path.join(this.workspaceRoot, 'templates', `${templateName}.json`);
     try {
-      // 校验 JSON 合法性
-      const json = JSON.stringify(template, null, 2);
-      JSON.parse(json);
-
-      // 校验 stages 中的 agent 名称
-      if (template.stages && Array.isArray(template.stages)) {
-        const invalidAgents = template.stages
-          .map(s => s.agent)
-          .filter(a => a && !KNOWN_AGENTS.includes(a));
-        if (invalidAgents.length > 0) {
-          throw new Error(
-            `模板包含无效的 agent 名称: ${invalidAgents.join(', ')}。` +
-            `可用 agent: ${KNOWN_AGENTS.join(', ')}`
-          );
-        }
+      const errs = validateTemplate(template);
+      if (errs.length > 0) {
+        throw new Error(`模板数据无效:\n  ${errs.join('\n  ')}`);
       }
+      const json = JSON.stringify(template, null, 2);
 
       const dir = path.dirname(templatePath);
       await fs.mkdir(dir, { recursive: true });
@@ -104,6 +135,23 @@ export class WorkspaceConfigManager {
     } catch (err) {
       throw new Error(`Failed to write memory: ${err}`);
     }
+  }
+
+  async readSharedProfile(userId: string): Promise<object> {
+    const profilePath = path.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
+    try {
+      const content = await fs.readFile(profilePath, 'utf-8');
+      return JSON.parse(content);
+    } catch {
+      return {};
+    }
+  }
+
+  async writeSharedProfile(userId: string, profile: object): Promise<void> {
+    const profilePath = path.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
+    const dir = path.dirname(profilePath);
+    await fs.mkdir(dir, { recursive: true });
+    await fs.writeFile(profilePath, JSON.stringify(profile, null, 2), 'utf-8');
   }
 
   async resetTemplate(templateName: string): Promise<void> {
@@ -158,6 +206,19 @@ export async function workspaceConfig(
         : params.content;
       return await manager.writeMemory(params.user_id, params.agent_name, memory);
 
+    case 'read_shared_profile':
+      if (!params.user_id) throw new Error('user_id required');
+      return await manager.readSharedProfile(params.user_id);
+
+    case 'write_shared_profile':
+      if (!params.user_id || !params.content) {
+        throw new Error('user_id and content required');
+      }
+      const sharedProfile = typeof params.content === 'string'
+        ? JSON.parse(params.content)
+        : params.content;
+      return await manager.writeSharedProfile(params.user_id, sharedProfile);
+
     case 'reset_template':
       if (!params.template_name) throw new Error('template_name required');
       return await manager.resetTemplate(params.template_name);
@@ -166,7 +227,7 @@ export async function workspaceConfig(
       return await initWorkspace(workspaceRoot);
 
     default:
-      throw new Error(`Unknown action: ${action}. 可用操作: list_templates, read_template, write_template, init_workspace, read_memory, write_memory`);
+      throw new Error(`Unknown action: ${action}. 可用操作: list_templates, read_template, write_template, init_workspace, read_memory, write_memory, read_shared_profile, write_shared_profile`);
   }
 }
 
@@ -178,6 +239,7 @@ export async function initWorkspace(workspaceRoot: string): Promise<{ created: s
     path.join(workspaceRoot, 'templates'),
     path.join(workspaceRoot, 'projects'),
     path.join(workspaceRoot, 'projects', '__example__', 'agents'),
+    path.join(workspaceRoot, 'agent-guides'),
   ];
   const created: string[] = [];
   for (const dir of dirs) {
@@ -195,7 +257,6 @@ export async function initWorkspace(workspaceRoot: string): Promise<{ created: s
       created.push(dst);
     }
   } catch {
-    // 种子目录不存在时创建默认模板
     const defaultTemplate = {
       name: 'default',
       description: '默认流水线模板：调研 → 创作 → 审核',
@@ -222,40 +283,3 @@ export async function initWorkspace(workspaceRoot: string): Promise<{ created: s
   };
 }
 
-/**
- * 为工具导出标准的 OpenClaw 工具定义
- */
-export const workspaceConfigTool = {
-    workspace_config: {
-    id: 'workspace_config',
-    name: 'workspace_config',
-    description: '管理管道工作区的配置、模板和记忆文件。首次使用前请先调用 init_workspace 初始化工作区。',
-    parameters: {
-      type: 'object',
-      properties: {
-        action: {
-          type: 'string',
-          enum: ['list_templates', 'read_template', 'write_template', 'read_memory', 'write_memory', 'reset_template', 'init_workspace'],
-          description: '执行的操作',
-        },
-        template_name: {
-          type: 'string',
-          description: '模板名称（部分操作需要）',
-        },
-        agent_name: {
-          type: 'string',
-          description: 'Agent 名称（记忆操作需要）',
-        },
-        user_id: {
-          type: 'string',
-          description: '用户 ID（记忆操作需要）',
-        },
-        content: {
-          type: ['string', 'object'],
-          description: '模板或记忆的内容（write 操作需要）',
-        },
-      },
-      required: ['action'],
-    },
-  },
-};

@@ -1,15 +1,15 @@
 {
   "id": "multi-agent-pipeline",
   "name": "通用多 Agent 流水线引擎",
-  "description": "Slot 所有权 + Remark 追溯 + 用户级进化记忆，支持多 Agent 协作流水线",
-  "version": "0.1.0",
+  "description": "Slot 所有权 + Remark 追溯 + 用户级进化记忆，支持多 Agent 协作流水线。内置风格学习系统。",
+  "version": "0.2.0",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
     "properties": {
       "workspaceRoot": {
         "type": "string",
-        "description": "Pipeline workspace root directory (defaults to ~/.openclaw/workspaces/multi-agent-pipeline)",
+        "description": "Pipeline workspace root directory (defaults to <plugin_root>/workspace/)",
         "default": ""
       }
     }
@@ -21,6 +21,18 @@
       "pipeline_add_remark",
       "style_get_profile",
       "style_record_feedback",
+      "style_read_profile",
+      "style_write_profile",
+      "style_extract_signal",
+      "kb_write",
+      "kb_read",
+      "voiceprint_init",
+      "voiceprint_proceed",
+      "voiceprint_calibrate",
+      "voiceprint_analyze",
+      "voiceprint_confirm",
+      "voiceprint_reset",
+      "style_get_context",
       "route_message",
       "workspace_config",
       "agent_guide_generator",
@@ -48,6 +60,21 @@
     "style_record_feedback": {
       "description": "更新当前 Agent 对当前用户的长期记忆偏好"
     },
+    "style_read_profile": {
+      "description": "读取用户的完整风格 DNA 配置（_shared 共享）"
+    },
+    "style_write_profile": {
+      "description": "写入用户的完整风格 DNA 配置"
+    },
+    "style_extract_signal": {
+      "description": "记录一个风格纠正信号到知识库（自动调用）"
+    },
+    "kb_write": {
+      "description": "写入一条用户知识库条目"
+    },
+    "kb_read": {
+      "description": "读取用户知识库条目"
+    },
     "route_message": {
       "description": "将消息路由给指定的专业 Agent，实现直接对话",
       "orchestratorOnly": true
@@ -62,7 +89,25 @@
       "description": "[仅限新项目] 启动全新接力管道。如管道已在运行请勿重复调用，改用 pipeline_continue。"
     },
     "pipeline_continue": {
-      "description": "[管道运行中唯一入口] 处理所有用户消息：检测"下一阶段"等推进关键词则自动切换阶段，否则路由给当前专家对话。"
+      "description": "[管道运行中唯一入口] 处理所有用户消息。自动拦截用户纠正信号写入风格知识库。"
+    },
+    "voiceprint_init": {
+      "description": "[Voiceprint 入口] 初始化/恢复状态机。返回当前步骤 + 提示语。"
+    },
+    "voiceprint_proceed": {
+      "description": "[Voiceprint 步骤 1-6] 存样本 + 推进步骤。返回下一步提示语。"
+    },
+    "voiceprint_calibrate": {
+      "description": "[Voiceprint 步骤 7-8] 偏好校准。需在步骤 7-8 调用，推进到步骤 9。"
+    },
+    "voiceprint_analyze": {
+      "description": "[Voiceprint 步骤 9] 写入子 agent 分析结论。需在步骤 9 调用，推进到步骤 10。"
+    },
+    "voiceprint_confirm": {
+      "description": "[Voiceprint 步骤 10] 确认锁定。传 corrections 只记录不锁定。"
+    },
+    "voiceprint_reset": {
+      "description": "重置 voiceprint 状态，允许重新做风格快照。"
     }
   },
   "activation": {

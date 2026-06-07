@@ -270,13 +270,13 @@ export async function pipelineStart(
     return {
       status: 'initialized',
       mode,
-      current_stage: 0,
+      current_stage: state.current_stage,
       current_stage_name: currentStage.id,
       current_agent: currentStage.agent,
       stage_description: currentStage.description,
       total_stages: template.stages.length,
       stages: stagesSummary,
-      message: `项目已启动（${mode === 'relay' ? '接力' : '管道'}模式）！第 1/${template.stages.length} 阶段：由 [${currentStage.agent}] 为您服务。请告诉我你的需求。`,
+      message: `项目已启动（${mode === 'relay' ? '接力' : '管道'}模式）！第 ${state.current_stage + 1}/${template.stages.length} 阶段：由 [${currentStage.agent}] 为您服务。请告诉我你的需求。`,
       status_panel: buildStatusPanel(state, template, state.current_stage),
     };
   } catch (err) {
@@ -294,30 +294,3 @@ export async function pipelineStart(
   }
 }
 
-export const pipelineStartTool = {
-  id: 'pipeline_start',
-  name: 'pipeline_start',
-  description: '启动管道项目（接力模式）：初始化工作区，调度第一位专家与用户对话。',
-  parameters: {
-    type: 'object',
-    properties: {
-      template_name: {
-        type: 'string',
-        description: '模板名称（如 xiaohongshu-creation）',
-      },
-      user_id: {
-        type: 'string',
-        description: '用户 ID（如 alice）',
-      },
-      project_id: {
-        type: 'string',
-        description: '项目 ID（如 spring-travel）',
-      },
-      initial_message: {
-        type: 'string',
-        description: '用户的初始需求消息',
-      },
-    },
-    required: ['template_name', 'user_id', 'project_id'],
-  },
-};

@@ -126,3 +126,91 @@ export interface ToolContext {
   workspace_root: string;
   api?: { runtime: { subagent: SubagentAPI } };
 }
+
+// ---- 以下为新加类型 ----
+
+export type AgentRole = 'content-writer' | 'topic-researcher' | 'web-researcher' | 'quality-reviewer' | 'publisher' | 'orchestrator' | string;
+
+export interface StyleDNA {
+  corePrinciples: string[];
+  syntaxPatterns: Record<string, unknown>;
+  vocabulary: {
+    highFreq: string[];
+    forbidden: string[];
+    techTerms: string[];
+  };
+  forbiddenPatterns: string[];
+  growthDirection: string;
+}
+
+export interface StyleProfile {
+  userId: string;
+  version: number;
+  dna: StyleDNA;
+  lastUpdated: string;
+}
+
+export interface KBEntry {
+  userId: string;
+  category: 'persona' | 'insight' | 'fact' | 'feedback';
+  content: string;
+  source: AgentRole;
+  timestamp: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface PipelineContext {
+  userId: string;
+  projectId: string;
+  templateName: string;
+  currentRole: AgentRole;
+  currentStage: number;
+  hasStyleProfile?: boolean;
+}
+
+export interface CorrectionSignal {
+  type: 'preference' | 'correction' | 'forbidden' | 'praise';
+  quote: string;
+  agent: AgentRole;
+  userId: string;
+}
+
+export interface InjectionBlock {
+  role: AgentRole;
+  header: string;
+  content: string;
+  position: 'head' | 'tail';
+}
+
+// ---- Voiceprint 状态机 ----
+export interface VoiceprintSample {
+  text: string;
+  label: string;
+}
+
+export interface VoiceprintPreferences {
+  sentenceLength?: 'short' | 'medium' | 'long';
+  useEmoji?: boolean;
+  useExclamation?: boolean;
+  tone?: 'casual' | 'formal' | 'balanced';
+  selectedForbiddenPhrases?: string[];
+}
+
+export interface VoiceprintSubAnalysis {
+  corePrinciples: string[];
+  forbiddenPatterns: string[];
+  highFreqWords: string[];
+  techTerms?: string[];
+  syntaxPatterns: Record<string, unknown>;
+  growthDirection?: string;
+}
+
+export interface VoiceprintState {
+  step: number;        // 0=未开始, 1-6=路径A样本收集, 7-8=校准, 9=分析, 10=确认, 99=完成
+  path: 'A' | 'B' | null;
+  samples: VoiceprintSample[];
+  preferences?: VoiceprintPreferences;
+  analysis?: VoiceprintSubAnalysis;
+  confirmed: boolean;
+  updatedAt: string;
+}

@@ -1,0 +1,38 @@
+{
+  "template_name": "demo-template",
+  "current_stage": 2,
+  "slot_values": {
+    "topic": "",
+    "research_data": "",
+    "draft": "",
+    "review": "",
+    "final": ""
+  },
+  "slot_history": {
+    "topic": [],
+    "research_data": [],
+    "draft": [],
+    "review": [],
+    "final": []
+  },
+  "remarks": [],
+  "stage_history": [
+    {
+      "stage": 0,
+      "stage_id": "选题调研",
+      "agent": "topic-researcher",
+      "started_at": "2026-06-05T05:23:11.332Z",
+      "versions": 0,
+      "completed_at": "2026-06-05T05:23:11.345Z"
+    },
+    {
+      "stage": 2,
+      "stage_id": "内容创作",
+      "agent": "content-writer",
+      "started_at": "2026-06-05T05:23:11.349Z",
+      "versions": 0
+    }
+  ],
+  "status": "running",
+  "mode": "relay"
+}

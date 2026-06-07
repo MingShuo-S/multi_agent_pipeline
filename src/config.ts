@@ -1,4 +1,7 @@
-import { homedir } from 'os';
+// src/config.ts - 工作区路径配置
+// 用 __dirname 推导 WORKSPACE_ROOT = <plugin_root>/workspace/
+// 相对 .openclaw 位置在部署时确定，不依赖 HOME 目录猜测
+
 import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname, basename } from 'path';
@@ -6,12 +9,12 @@ import { dirname, basename } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const { env } = process;
 
+const pluginRoot = join(__dirname, '..');
+
 let wsRoot = env.OPENCLAW_WORKSPACE
     ? join(env.OPENCLAW_WORKSPACE)
-    : join(homedir(), '.openclaw', 'workspaces', 'multi-agent-pipeline');
+    : join(pluginRoot, 'workspace');
 
-// 如果 WORKSPACE_ROOT 的 basename 是 templates，说明网关传递的是模板目录而非工作区根目录
-// 回退到父目录，避免代码逻辑中 path.join(WORKSPACE_ROOT, 'templates') 产生双嵌套路径
 if (basename(wsRoot) === 'templates') {
     wsRoot = join(wsRoot, '..');
 }
@@ -19,3 +22,5 @@ if (basename(wsRoot) === 'templates') {
 export const WORKSPACE_ROOT = wsRoot;
 
 export const SEED_TEMPLATES_DIR = join(__dirname, '..', 'templates');
+
+export const SHARED_DIR = join(wsRoot, '_shared');

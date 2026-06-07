@@ -141,22 +141,3 @@ export async function pipelineStatus(
   }
 }
 
-export const pipelineStatusTool = {
-  id: 'pipeline_status',
-  name: 'pipeline_status',
-  description: '查看管道项目状态面板，包括当前阶段、各阶段进度、Slot 版本历史、批注记录。',
-  parameters: {
-    type: 'object',
-    properties: {
-      user_id: {
-        type: 'string',
-        description: '用户 ID',
-      },
-      project_id: {
-        type: 'string',
-        description: '项目 ID',
-      },
-    },
-    required: ['user_id', 'project_id'],
-  },
-};

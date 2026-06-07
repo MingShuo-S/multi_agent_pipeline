@@ -53,32 +53,4 @@ export async function agentGuideGenerator(
   await generator.generateGuide(agentName, instructions, append);
 }
 
-/**
- * 为工具导出标准的 OpenClaw 工具定义
- */
-export const agentGuideTool = {
-  agent_guide_generator: {
-    id: 'agent_guide_generator',
-    name: 'agent_guide_generator',
-    description: '为特定 Agent 生成或更新协作指南',
-    parameters: {
-      type: 'object',
-      properties: {
-        agent_name: {
-          type: 'string',
-          description: 'Agent 的名称',
-        },
-        instructions: {
-          type: 'string',
-          description: '协作指南的内容',
-        },
-        append: {
-          type: 'boolean',
-          description: '是否追加到现有指南（默认 false，覆盖）',
-          default: false,
-        },
-      },
-      required: ['agent_name', 'instructions'],
-    },
-  },
-};
+

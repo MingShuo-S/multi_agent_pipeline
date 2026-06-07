@@ -1,0 +1,45 @@
+{
+  "template_name": "demo-template",
+  "current_stage": 2,
+  "slot_values": {
+    "topic": "",
+    "research_data": "",
+    "draft": "[内容创作者] 初稿已完成！\n\n**南京红庙：一条800米的老街，藏了30+家神级小吃**\n\n开头：来南京别只去夫子庙了，红庙才是本地人的快乐老家...\n\n你可以让我修改/润色，满意后输入\"下一阶段\"交给审核。",
+    "review": "",
+    "final": ""
+  },
+  "slot_history": {
+    "topic": [],
+    "research_data": [],
+    "draft": [
+      {
+        "content": "[内容创作者] 初稿已完成！\n\n**南京红庙：一条800米的老街，藏了30+家神级小吃**\n\n开头：来南京别只去夫子庙了，红庙才是本地人的快乐老家...\n\n你可以让我修改/润色，满意后输入\"下一阶段\"交给审核。",
+        "written_at": "2026-06-05T05:24:00.733Z",
+        "version": 0,
+        "agent": "content-writer"
+      }
+    ],
+    "review": [],
+    "final": []
+  },
+  "remarks": [],
+  "stage_history": [
+    {
+      "stage": 0,
+      "stage_id": "选题调研",
+      "agent": "topic-researcher",
+      "started_at": "2026-06-05T05:24:00.670Z",
+      "versions": 0,
+      "completed_at": "2026-06-05T05:24:00.682Z"
+    },
+    {
+      "stage": 2,
+      "stage_id": "内容创作",
+      "agent": "content-writer",
+      "started_at": "2026-06-05T05:24:00.688Z",
+      "versions": 0
+    }
+  ],
+  "status": "running",
+  "mode": "relay"
+}
