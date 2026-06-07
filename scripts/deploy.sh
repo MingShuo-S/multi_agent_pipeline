@@ -303,10 +303,13 @@ XHS_MCP_VERSION="latest"
 XHS_MCP_DIR="${OPENCLAW_HOME}/mcp-servers/xiaohongshu"
 XHS_MCP_BIN="${XHS_MCP_DIR}/xiaohongshu-mcp-linux-amd64"
 
+# 使用 ghproxy.net 镜像（GitHub 直连在 BayesDL 不稳定）
+GITHUB_MIRROR="https://ghproxy.net"
+
 if [ ! -f "$XHS_MCP_BIN" ]; then
   echo "  → 下载 xiaohongshu-mcp MCP Server..."
   mkdir -p "${XHS_MCP_DIR}"
-  XHS_URL="https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-mcp-linux-amd64"
+  XHS_URL="${GITHUB_MIRROR}/https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-mcp-linux-amd64"
   if command -v wget &>/dev/null; then
     wget -q "${XHS_URL}" -O "$XHS_MCP_BIN" && echo "  ✓ MCP Server 下载完成" || echo "  ⚠ MCP Server 下载失败"
   elif command -v curl &>/dev/null; then
@@ -315,11 +318,11 @@ if [ ! -f "$XHS_MCP_BIN" ]; then
   chmod +x "$XHS_MCP_BIN" 2>/dev/null || true
 fi
 
-# 尝试登录（仅首次或 session 过期时）
+# 尝试登录（仅在 MCP Server 二进制存在且无 session 时）
 LOGIN_BIN="${XHS_MCP_DIR}/xiaohongshu-login-linux-amd64"
 if [ -f "$XHS_MCP_BIN" ] && [ ! -f "${XHS_MCP_DIR}/session.data" ]; then
   if [ ! -f "$LOGIN_BIN" ]; then
-    LOGIN_URL="https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-login-linux-amd64"
+    LOGIN_URL="${GITHUB_MIRROR}/https://github.com/xpzouying/xiaohongshu-mcp/releases/${XHS_MCP_VERSION}/download/xiaohongshu-login-linux-amd64"
     echo "  → 下载 xiaohongshu 登录工具..."
     if command -v wget &>/dev/null; then
       wget -q "${LOGIN_URL}" -O "$LOGIN_BIN" && echo "  ✓ 登录工具下载完成" || echo "  ⚠ 登录工具下载失败"
