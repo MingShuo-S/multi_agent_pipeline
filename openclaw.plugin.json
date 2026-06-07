@@ -39,7 +39,8 @@
       "agent_guide_generator",
       "pipeline_start",
       "pipeline_continue",
-      "pipeline_status"
+      "pipeline_status",
+      "pipeline_display"
     ]
   },
   "toolMetadata": {
@@ -54,6 +55,9 @@
     },
     "pipeline_status": {
       "description": "查看管道完整状态面板（阶段进度、Slot 版本历史、批注记录）"
+    },
+    "pipeline_display": {
+      "description": "[orchestrator 专用] 直接输出最新 slot/remark 的格式化 markdown，orchestrator 原样转发给用户"
     },
     "style_get_profile": {
       "description": "获取当前 Agent 对当前用户的长期记忆偏好"

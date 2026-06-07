@@ -9,6 +9,7 @@ import { routeMessage } from './tools/route-message.js';
 import { pipelineStart } from './tools/pipeline-start.js';
 import { pipelineContinue } from './tools/pipeline-continue.js';
 import { pipelineStatus } from './tools/pipeline-status.js';
+import { pipelineDisplay } from './tools/pipeline-display.js';
 import { styleReadProfile, styleWriteProfile, kbWrite, kbRead, styleExtractSignal, voiceprintInit, styleGetContext, voiceprintAnalyze, voiceprintCalibrate, voiceprintConfirm, voiceprintProceed, voiceprintReset } from './tools/style-system.js';
 import { StateManager } from './runtime/state-manager.js';
 import { WORKSPACE_ROOT } from './config.js';
@@ -115,6 +116,24 @@ export default defineToolPlugin({
           return result;
         } catch (err) {
           return { status: 'error', error: String(err) };
+        }
+      },
+    }),
+
+    tool({
+      name: 'pipeline_display',
+      label: 'pipeline_display',
+      description: '[orchestrator 专用] 直接输出最新 slot/remark 的格式化 markdown。orchestrator 应原样转发给用户，不要总结或重述。',
+      parameters: Type.Object({
+        user_id: Type.String({ description: '用户 ID' }),
+        project_id: Type.String({ description: '项目 ID' }),
+      }),
+      async execute(params, _config, _ctx) {
+        try {
+          const p = params as any;
+          return await pipelineDisplay(p.user_id, p.project_id, pickWs());
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }
       },
     }),
