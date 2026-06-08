@@ -276,10 +276,8 @@ if command -v openclaw &>/dev/null; then
   )
   for skill in "${SKILLS[@]}"; do
     echo "  → 安装 $skill..."
-    INSTALL_OUTPUT=$(openclaw skills install "$skill" 2>&1)
-    if echo "$INSTALL_OUTPUT" | grep -qi "already exists"; then
-      echo "  ✓ $skill 已安装（跳过）"
-    elif [ $? -eq 0 ]; then
+    INSTALL_OUTPUT=$(openclaw skills install "$skill" --force 2>&1)
+    if echo "$INSTALL_OUTPUT" | grep -qi "already exists\|installed\|success"; then
       echo "  ✓ $skill 安装完成"
     else
       echo "  ⚠ $skill 安装失败（可跳过）"
