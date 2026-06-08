@@ -291,12 +291,8 @@ fi
 LOCAL_SKILL_SRC="${PLUGIN_DIR}/skills"
 if [ -d "${LOCAL_SKILL_SRC}/style-voiceprint" ]; then
   if command -v openclaw &>/dev/null; then
-    if [ ! -d "$(openclaw skills list --json 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print([s['dir'] for s in d if s['name']=='style-voiceprint'][0] if any(s['name']=='style-voiceprint' for s in d) else '')" 2>/dev/null)" ]; then
-      echo "  → 安装 style-voiceprint（本地）..."
-      openclaw skills install "${LOCAL_SKILL_SRC}/style-voiceprint" --as style-voiceprint 2>&1 && echo "  ✓ style-voiceprint 安装完成" || echo "  ⚠ style-voiceprint 安装失败"
-    else
-      echo "  ✓ style-voiceprint 已安装"
-    fi
+    echo "  → 安装 style-voiceprint（本地）..."
+    openclaw skills install "${LOCAL_SKILL_SRC}/style-voiceprint" --as style-voiceprint --force 2>&1 && echo "  ✓ style-voiceprint 安装完成" || echo "  ⚠ style-voiceprint 安装失败（可跳过）"
   fi
 fi
 # 7c: xiaohongshu-mcp 外部 MCP Server 二进制
