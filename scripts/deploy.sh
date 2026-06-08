@@ -348,27 +348,15 @@ if [ -f "$XHS_MCP_BIN" ] && [ ! -f "${XHS_MCP_DIR}/session.data" ]; then
 
   if [ -f "$LOGIN_BIN" ]; then
     echo ""
-    echo "  ┌─────────────────────────────────────────────┐"
-    echo "  │  登录小红书 ? [y/N]                          │"
-    echo "  │  需要浏览器环境扫描二维码。                    │"
-    echo "  │  如当前终端无显示支持，选 N 后手动登录。        │"
-    echo "  └─────────────────────────────────────────────┘"
-    read -r XHS_LOGIN_CHOICE
-    if [ "$XHS_LOGIN_CHOICE" = "y" ] || [ "$XHS_LOGIN_CHOICE" = "Y" ]; then
-      echo "  → 打开登录页面，请用手机小红书扫码..."
-      "$LOGIN_BIN"
-      if [ $? -eq 0 ]; then
-        echo "  ✓ 登录成功"
-      else
-        echo "  ⚠ 登录失败或无显示支持。可手动登录："
-        echo "    将 ${LOGIN_BIN} 复制到有浏览器的机器执行扫码，"
-        echo "    将 session.data 复制回 ${XHS_MCP_DIR}/"
-      fi
-    else
-      echo "  ℹ 跳过登录。可稍后手动登录："
-      echo "    将 ${LOGIN_BIN} 复制到有浏览器的机器执行扫码，"
-      echo "    将 session.data 复制回 ${XHS_MCP_DIR}/"
-    fi
+    echo "  ⚠ 小红书登录需要浏览器扫码，headless 终端不支持"
+    echo "  ℹ 跳过自动登录。手动登录步骤："
+    echo "    1. 在有浏览器的机器下载登录工具:"
+    echo "       ${GITHUB_MIRROR}/https://github.com/xpzouying/xiaohongshu-mcp/releases/latest/download/xiaohongshu-login-linux-amd64"
+    echo "    2. 运行: ./xiaohongshu-login-linux-amd64"
+    echo "    3. 手机小红书扫码登录"
+    echo "    4. 将生成的 session.data 上传到: ${XHS_MCP_DIR}/"
+    echo "    5. 重启 MCP Server: pkill xiaohongshu-mcp && nohup ${XHS_MCP_BIN} &"
+    echo ""
   fi
 fi
 
