@@ -222,10 +222,23 @@ async function autoAdvanceNonCheckpointStages(
     if (currentEntry) currentEntry.completed_at = new Date().toISOString();
     nextStage++;
   }
-  state.current_stage = nextStage;
-  // 如果推进到了新阶段，记录开始
-  if (nextStage < template.stages.length) {
-    state.stage_history.push({
+  // 重新从磁盘加载，避免 updateSlot 写入的 slot 数据被内存中旧 state 覆盖
+  const saved = await stateManager.load();
+  saved.current_stage = nextStage;
+  // 合并 stage_history 变更（completed_at + 新阶段条目）
+  for (const entry of state.stage_history) {
+    if (entry.completed_at) {
+      const existing = saved.stage_history.find(h => h.stage === entry.stage);
+      if (existing) {
+        existing.completed_at = entry.completed_at;
+      } else {
+        saved.stage_history.push(entry);
+      }
+    }
+  }
+  // 如果推进到了新阶段且磁盘中没有，补充记录
+  if (nextStage < template.stages.length && !saved.stage_history.find(h => h.stage === nextStage)) {
+    saved.stage_history.push({
       stage: nextStage,
       stage_id: template.stages[nextStage].id,
       agent: template.stages[nextStage].agent,
@@ -233,8 +246,8 @@ async function autoAdvanceNonCheckpointStages(
       versions: 0,
     });
   }
-  await stateManager.save(state);
-  return state;
+  await stateManager.save(saved);
+  return saved;
 }
 
 /**

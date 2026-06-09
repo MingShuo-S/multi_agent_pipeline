@@ -363,21 +363,31 @@ async function autoAdvanceNonCheckpoint(
     if (currentEntry) currentEntry.completed_at = new Date().toISOString();
     nextStage++;
   }
-  s.current_stage = nextStage;
-  if (nextStage < template.stages.length) {
-    const exists = s.stage_history.find(h => h.stage === nextStage);
-    if (!exists) {
-      s.stage_history.push({
-        stage: nextStage,
-        stage_id: template.stages[nextStage].id,
-        agent: template.stages[nextStage].agent,
-        started_at: new Date().toISOString(),
-        versions: 0,
-      });
+  // 重新从磁盘加载，避免 updateSlot 写入的 slot 数据被内存中旧 state 覆盖
+  const saved = await stateManager.load();
+  saved.current_stage = nextStage;
+  // 合并 stage_history 变更（completed_at + 新阶段条目）
+  for (const entry of s.stage_history) {
+    if (entry.completed_at) {
+      const existing = saved.stage_history.find(h => h.stage === entry.stage);
+      if (existing) {
+        existing.completed_at = entry.completed_at;
+      } else {
+        saved.stage_history.push(entry);
+      }
     }
   }
-  await stateManager.save(s);
-  return s;
+  if (nextStage < template.stages.length && !saved.stage_history.find(h => h.stage === nextStage)) {
+    saved.stage_history.push({
+      stage: nextStage,
+      stage_id: template.stages[nextStage].id,
+      agent: template.stages[nextStage].agent,
+      started_at: new Date().toISOString(),
+      versions: 0,
+    });
+  }
+  await stateManager.save(saved);
+  return saved;
 }
 
 /**

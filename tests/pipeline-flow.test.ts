@@ -31,6 +31,7 @@ vi.mock('fs', () => mockFs);
 
 import { pipelineStart } from '../src/tools/pipeline-start.js';
 import { pipelineContinue } from '../src/tools/pipeline-continue.js';
+import { StateManager } from '../src/runtime/state-manager.js';
 import { SEED_TEMPLATES_DIR } from '../src/config.js';
 
 const sdir = SEED_TEMPLATES_DIR.replace(/\\/g, '/');
@@ -177,6 +178,93 @@ describe('pipeline 全流程模拟', () => {
 
       const complete = await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);
       expect(complete.status).toBe('completed');
+    });
+  });
+
+  describe('pipeline 完成后的状态验证', () => {
+    beforeEach(() => {
+      resetFs();
+      putTpl('3stage', template3Stage);
+      mockSubagent = {
+        run: vi.fn().mockResolvedValue({ runId: 'mock-run' }),
+        waitForRun: vi.fn().mockResolvedValue({ status: 'ok' }),
+        getSessionMessages: vi.fn().mockResolvedValue({
+          messages: [{ role: 'assistant', content: '这是 agent 的回复内容，不少于十个字' }],
+        }),
+      };
+      mockApi = { runtime: { subagent: mockSubagent } };
+    });
+
+    it('slot 内容在 pipeline 完成后非空', async () => {
+      await pipelineStart('3stage', UID, PID, '帮我写篇文章', WR, mockApi);
+      await pipelineContinue(UID, PID, '需要更多细节', WR, mockApi);
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);
+
+      const sm = new StateManager(WR, UID, PID);
+      const state = await sm.load();
+
+      expect(state.status).toBe('completed');
+      expect(state.slot_values.out1).toBeTruthy();
+      expect(state.slot_values.out2).toBeTruthy();
+      expect(state.slot_values.out3).toBeTruthy();
+    });
+
+    it('全部非 checkpoint 模板完成后 slot 非空', async () => {
+      putTpl('simple-2stage', simpleTemplate2Stage);
+      await pipelineStart('simple-2stage', UID, PID, '帮我写文章', WR, mockApi);
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);
+
+      const sm = new StateManager(WR, UID, PID);
+      const state = await sm.load();
+
+      expect(state.status).toBe('completed');
+      // non-checkpoint researcher 自动推进写入 topic
+      expect(state.slot_values.topic).toBeTruthy();
+      // checkpoint writer 通过 executeDialogue 写入 draft
+      expect(state.slot_values.draft).toBeTruthy();
+    });
+
+    it('stage_history 包含所有阶段且已标记完成', async () => {
+      await pipelineStart('3stage', UID, PID, '帮我写篇文章', WR, mockApi);
+      await pipelineContinue(UID, PID, '需要更多细节', WR, mockApi);
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);
+
+      const sm = new StateManager(WR, UID, PID);
+      const state = await sm.load();
+
+      expect(state.stage_history).toHaveLength(3);
+      const completedStages = state.stage_history.filter(s => s.completed_at);
+      expect(completedStages).toHaveLength(3);
+    });
+
+    it('4-stage 全 checkpoint 模板完成后所有 slot 有内容', async () => {
+      putTpl('4stage', template4Stage);
+      const start = await pipelineStart('4stage', UID, PID, '', WR, mockApi);
+      expect(start.status).toBe('initialized');
+
+      // 逐阶段推进
+      await pipelineContinue(UID, PID, '帮我研究', WR, mockApi);       // dialogue a1
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);         // advance
+      await pipelineContinue(UID, PID, '写初稿', WR, mockApi);           // dialogue a2
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);         // advance
+      await pipelineContinue(UID, PID, '审校', WR, mockApi);             // dialogue a3
+      await pipelineContinue(UID, PID, '下一阶段', WR, mockApi);         // advance
+      await pipelineContinue(UID, PID, '发布', WR, mockApi);             // dialogue a4
+      const complete = await pipelineContinue(UID, PID, '下一阶段', WR, mockApi); // completes
+      expect(complete.status).toBe('completed');
+
+      const sm = new StateManager(WR, UID, PID);
+      const state = await sm.load();
+
+      // 所有 slot 应有内容
+      expect(state.slot_values.slot1).toBeTruthy();
+      expect(state.slot_values.slot2).toBeTruthy();
+      expect(state.slot_values.slot3).toBeTruthy();
+      expect(state.slot_values.slot4).toBeTruthy();
+
+      // 所有 4 个 stage 应标记完成
+      expect(state.stage_history).toHaveLength(4);
+      expect(state.stage_history.filter(s => s.completed_at)).toHaveLength(4);
     });
   });
 

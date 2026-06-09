@@ -57,7 +57,8 @@ export default defineToolPlugin({
           const wsRoot = pickWs();
           const { userId, projectId, templateName } = await resolveStateContext();
           const template = await new WorkspaceConfigManager(wsRoot).readTemplate(templateName);
-          const result = await pipelineRead(toolCtx(ctx), (params as any).slot_name, template);
+          const resolvedCtx = { ...toolCtx(ctx), user_id: userId, project_id: projectId };
+          const result = await pipelineRead(resolvedCtx, (params as any).slot_name, template);
           return typeof result === 'string' ? result : result;
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -78,7 +79,8 @@ export default defineToolPlugin({
           const wsRoot = pickWs();
           const { userId, projectId, templateName } = await resolveStateContext();
           const template = await new WorkspaceConfigManager(wsRoot).readTemplate(templateName);
-          await pipelineWriteSlot(toolCtx(ctx), (params as any).slot_name, (params as any).content, template);
+          const resolvedCtx = { ...toolCtx(ctx), user_id: userId, project_id: projectId };
+          await pipelineWriteSlot(resolvedCtx, (params as any).slot_name, (params as any).content, template);
           return '成功写入';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -95,7 +97,10 @@ export default defineToolPlugin({
       }),
       async execute(params, _config, ctx) {
         try {
-          await pipelineAddRemark(toolCtx(ctx), (params as any).content);
+          const wsRoot = pickWs();
+          const { userId, projectId } = await resolveStateContext();
+          const resolvedCtx = { ...toolCtx(ctx), user_id: userId, project_id: projectId };
+          await pipelineAddRemark(resolvedCtx, (params as any).content);
           return '批注已添加';
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
@@ -790,3 +795,6 @@ export { AgentGuideGenerator } from './tools/agent-guide-generator.js';
 export { StyleSystem } from './tools/style-system.js';
 export { InjectionLayer } from './runtime/injection-layer.js';
 export type { ToolContext, Template, PipelineState, PipelineStage, Profile, KBEntry, CorrectionSignal, InjectionBlock, AgentRole } from './types.js';
+
+// 导出供测试验证 toolCtx 和 resolveStateContext 行为
+export { toolCtx, resolveStateContext };
