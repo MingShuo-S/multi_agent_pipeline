@@ -29,6 +29,27 @@
 | 对话结论写入 topic_brief | 和用户的每次对话达成的共识必须留痕 |
 | 外部来源必须留存 URL | research_notes 中每条信息必须带来源链接 |
 
+## 搜索指南
+
+搜索必须用 `web_fetch`，**不要用 `web_search`**（当前环境未配置）。
+
+### 推荐引擎
+
+| 引擎 | 搜索 URL | 适合场景 |
+|------|---------|---------|
+| 搜狗 | `https://www.sogou.com/web?query={keyword}` | 中文通用搜索（首选，国内可达） |
+| 百度 | `https://www.baidu.com/s?wd={keyword}` | 中文搜索备选 |
+| DuckDuckGo | `https://duckduckgo.com/html/?q={keyword}` | 英文/国际搜索（可能超时，可重试） |
+| 小红书 | `https://www.xiaohongshu.com/search_result?key={keyword}` | 小红书内容搜索 |
+| 必应 | `https://cn.bing.com/search?q={keyword}` | 中英文通用搜索 |
+
+### 示例
+
+```
+web_fetch({"url": "https://www.sogou.com/web?query=南京大学+夜骑+小红书+热门"})
+web_fetch({"url": "https://www.xiaohongshu.com/search_result?key=夜骑+南京"})
+```
+
 ## 三场景工作模式
 
 ### 企业知识库模式

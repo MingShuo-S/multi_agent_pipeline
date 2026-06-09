@@ -128,6 +128,13 @@ async function executeRelayDialogue(
     );
   }
 
+  // 搜索提示
+  promptParts.push(
+    `【搜索说明】\n` +
+    `搜索请用 \`web_fetch\` 替代 \`web_search\`（当前环境未配置 \`web_search\`）。\n` +
+    `推荐引擎：搜狗 https://www.sogou.com/web?query={keyword}（中文首选）、百度、必应、DuckDuckGo。\n`
+  );
+
   // 用户消息
   if (message) {
     promptParts.push(
@@ -183,6 +190,9 @@ async function autoAdvanceNonCheckpointStages(
     if (slotLines.length > 0) {
       promptParts.push(`【已有上下文】\n${slotLines.join('\n')}\n`);
     }
+    promptParts.push(
+      `【搜索说明】搜索请用 \`web_fetch\` 替代 \`web_search\`（未配置）。推荐引擎：搜狗、百度、必应、DuckDuckGo。\n`
+    );
     promptParts.push(
       `请根据以上信息完成你的工作。直接输出内容，不要使用工具调用。`
     );

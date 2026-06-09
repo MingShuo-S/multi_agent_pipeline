@@ -43,15 +43,15 @@
 
 ## 工具权限
 
+注意：子 agent 运行在隔离 sandbox 下，pipeline 工具（`pipeline_read`/`pipeline_write_slot`/`pipeline_add_remark`）不可用。
+上下文已通过 prompt 直接注入，搜索通过 `web_fetch` 进行。
+
 | 工具 | 用途 | 必选/可选 |
 |------|------|----------|
-| `pipeline_read` | 读已有 slot | 必选 |
-| `pipeline_write_slot` | 写 topic_brief + research_notes | 必选 |
-| `pipeline_add_remark` | 跨 stage 提建议 | 必选 |
-| `style_read_profile` | 读用户风格 DNA（选题偏好） | 必选 |
-| `kb_read` | 读用户画像 + 历史选题 + 领域知识 | 必选 |
-| `kb_write` | 记录调研洞察到知识库 | 必选 |
-| `group:web` | 一般网络搜索 | 必选 |
+| `web_fetch` | 网络搜索 + 内容抓取（替代 `web_search`） | 必选 |
+| `style_read_profile` | 读用户风格 DNA（选题偏好） | 可选 |
+| `kb_read` | 读用户画像 + 历史选题 + 领域知识 | 可选 |
+| `kb_write` | 记录调研洞察到知识库 | 可选 |
 | `group:code` | 代码执行（数据处理） | 可选 |
 | `group:read` | 文件读取（本地资料） | 可选 |
 
