@@ -222,9 +222,8 @@ if cur_plugin:
 cfg['agents'] = {
     "defaults": {
         "workspace": ws_root,
-        "model": {"primary": "maas/qwen3.6-flash"},
+        "model": {"primary": "bayesdl/qwen3.5-plus"},
         "models": {
-            "maas/qwen3.6-flash": {"alias": "qwen3.6-flash"},
             "bayesdl/deepseek-v4-flash": {"alias": "DeepSeek V4 Flash"},
             "bayesdl/qwen3-max": {"alias": "Qwen3 Max"},
             "bayesdl/qwen3.5-plus": {"alias": "Qwen3.5 Plus"},
