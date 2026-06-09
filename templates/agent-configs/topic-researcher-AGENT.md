@@ -12,7 +12,7 @@
 | Display Name | 选题调研专家 |
 | SOUL.md | `./SOUL.md` |
 | SKILL.md | `./SKILL.md` |
-| Default Model | `bayesdl/qwen3.5-plus`（R1: 企业/技术场景用 `deepseek-v4-flash`） |
+| Default Model | `bayesdl/qwen3.5-plus`（R1: 企业/技术场景用 `step-1x-medium`） |
 
 ## Pipeline Stage
 
@@ -60,8 +60,8 @@
 | 条件 | 模型 | 原因 |
 |------|------|------|
 | 默认 | `bayesdl/qwen3.5-plus` | 性价比均衡，日常对话+搜索够用 |
-| 场景=R1（企业/技术） | `bayesdl/deepseek-v4-flash` | 企业/技术场景需要更严谨的推理和事实判断 |
-| 深度搜索触发 | `bayesdl/deepseek-v4-flash` | 多轮下钻需要更强的推理 |
+| 场景=R1（企业/技术） | `bayesdl/step-1x-medium` | 企业/技术场景需要更严谨的推理和事实判断 |
+| 深度搜索触发 | `bayesdl/step-1x-medium` | 多轮下钻需要更强的推理 |
 | 用户要求快速 | `bayesdl/qwen3.5-plus` | 快，够用 |
 
 ## 已安装 Skills（ClawHub）

@@ -102,9 +102,9 @@ TOOLS[post-analyst]='{"allow":["group:plugins"]}'
 
 declare -A MODELS
 MODELS[topic-researcher]="bayesdl/qwen3.5-plus"
-MODELS[content-writer]="bayesdl/kimi-k2.5"
+MODELS[content-writer]="bayesdl/kimi-k2.6"
 MODELS[quality-reviewer]="bayesdl/qwen3.5-plus"
-MODELS[publisher]="bayesdl/deepseek-v4-flash"
+MODELS[publisher]="bayesdl/step-3.5-flash"
 MODELS[post-analyst]="bayesdl/qwen3.5-plus"
 
 for agent in "${AGENTS[@]}"; do

@@ -12,7 +12,7 @@
 | Display Name | 效果分析师 |
 | SOUL.md | `./SOUL.md` |
 | SKILL.md | `./SKILL.md` |
-| Default Model | `bayesdl/kimi-k2.5`（分析+洞察提炼，需要较强的综合推理） |
+| Default Model | `bayesdl/qwen3.5-plus`（分析+洞察提炼，需要较强的综合推理） |
 
 ## Pipeline Stage
 
@@ -20,7 +20,7 @@
 {
   "id": "analysis",
   "agent": "post-analyst",
-  "model": "bayesdl/kimi-k2.5",
+  "model": "bayesdl/qwen3.5-plus",
   "checkpoint": false,
   "allow_read": ["*"],
   "allow_write": ["performance_insights"],
@@ -67,10 +67,10 @@
 
 | 条件 | 模型 | 原因 |
 |------|------|------|
-| 默认 | `bayesdl/kimi-k2.5` | 分析+写作类任务，综合推理需求高但不需要极大 context |
-| 长周期对比分析（50 篇+） | `bayesdl/deepseek-v4-flash` | 长上下文 + 强推理，跨篇模式识别 |
-| 知识库数据压缩 | `bayesdl/deepseek-v4-flash` | 压缩需要精确判断什么保留什么丢弃 |
-| 用户要求快速概览 | `bayesdl/kimi-k2.5` | 够用 |
+| 默认 | `bayesdl/qwen3.5-plus` | 分析+写作类任务，综合推理需求高但不需要极大 context |
+| 长周期对比分析（50 篇+） | `bayesdl/step-1x-medium` | 长上下文 + 强推理，跨篇模式识别 |
+| 知识库数据压缩 | `bayesdl/step-1x-medium` | 压缩需要精确判断什么保留什么丢弃 |
+| 用户要求快速概览 | `bayesdl/qwen3.5-plus` | 够用 |
 
 ## 外部 Skills（openclaw AgentSkills）
 

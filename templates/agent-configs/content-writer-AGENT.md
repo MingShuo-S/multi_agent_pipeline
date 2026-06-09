@@ -12,7 +12,7 @@
 | Display Name | 写作专家 |
 | SOUL.md | `./SOUL.md` |
 | SKILL.md | `./SKILL.md` |
-| Default Model | `bayesdl/kimi-k2.5`（创作长文用 `deepseek-v4-flash`） |
+| Default Model | `bayesdl/kimi-k2.6`（创作长文用 `step-1x-medium`） |
 
 ## Pipeline Stage
 
@@ -20,7 +20,7 @@
 {
   "id": "draft-writing",
   "agent": "content-writer",
-  "model": "bayesdl/kimi-k2.5",
+  "model": "bayesdl/kimi-k2.6",
   "checkpoint": true,
   "allow_read": ["article_idea", "target_audience", "topic_brief", "research_notes"],
   "allow_write": ["draft_content"],
@@ -70,11 +70,11 @@
 
 | 条件 | 模型 | 原因 |
 |------|------|------|
-| 默认 | `bayesdl/kimi-k2.5` | 性价比均衡，日常文案够用 |
-| 长文创作（>2000 字） | `bayesdl/deepseek-v4-flash` | 长文需要更强的逻辑连贯性和指令遵循 |
-| 技术博客 / 企业文档 | `bayesdl/deepseek-v4-flash` | 技术内容需要更严谨的表述 |
-| 用户要求快速出稿 | `bayesdl/kimi-k2.5` | 简短文案够用 |
-| 用户明确要求精确风格模仿 | `bayesdl/deepseek-v4-flash` | 风格遵循能力更强 |
+| 默认 | `bayesdl/kimi-k2.6` | 性价比均衡，日常文案够用 |
+| 长文创作（>2000 字） | `bayesdl/step-1x-medium` | 长文需要更强的逻辑连贯性和指令遵循 |
+| 技术博客 / 企业文档 | `bayesdl/step-1x-medium` | 技术内容需要更严谨的表述 |
+| 用户要求快速出稿 | `bayesdl/kimi-k2.6` | 简短文案够用 |
+| 用户明确要求精确风格模仿 | `bayesdl/step-1x-medium` | 风格遵循能力更强 |
 
 ## 外部 Skills（openclaw AgentSkills）
 

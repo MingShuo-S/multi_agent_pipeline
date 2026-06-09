@@ -12,7 +12,7 @@
 | Display Name | 发布专家 |
 | SOUL.md | `./SOUL.md` |
 | SKILL.md | `./SKILL.md` |
-| Default Model | `bayesdl/qwen3.5-plus`（格式适配任务，性价比优先） |
+| Default Model | `bayesdl/step-3.5-flash`（格式适配+发布任务，速度快成本低） |
 
 ## Pipeline Stage
 
@@ -20,7 +20,7 @@
 {
   "id": "publishing",
   "agent": "publisher",
-  "model": "bayesdl/qwen3.5-plus",
+  "model": "bayesdl/step-3.5-flash",
   "checkpoint": false,
   "allow_read": ["draft_content", "review_feedback"],
   "allow_write": ["final_output"],
@@ -66,10 +66,10 @@
 
 | 条件 | 模型 | 原因 |
 |------|------|------|
-| 默认 | `bayesdl/qwen3.5-plus` | 格式适配 + 规则检查，推理需求低 |
-| 多平台并行发布 | `bayesdl/qwen3.5-plus` | 多个平台的适配方案生成 |
-| 平台规则复杂场景 | `bayesdl/deepseek-v4-flash` | 复杂规则匹配需要更强推理 |
-| 用户要求高精度格式 | `bayesdl/deepseek-v4-flash` | 排版一致性要求高时 |
+| 默认 | `bayesdl/step-3.5-flash` | Flash 系列，速度快成本低，格式适配够用 |
+| 多平台并行发布 | `bayesdl/step-3.5-flash` | Flash 并发性能好，多个平台一次搞定 |
+| 平台规则复杂场景 | `bayesdl/step-1x-medium` | 复杂规则匹配需要更强推理 |
+| 用户要求高精度格式 | `bayesdl/step-1x-medium` | 排版一致性要求高时 |
 
 ## 外部 Skills（openclaw AgentSkills）
 
