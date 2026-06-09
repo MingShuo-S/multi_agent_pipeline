@@ -50,10 +50,12 @@ done
 echo ""
 echo "  --- 拷贝模板 ---"
 
-# 到插件工作区
+# 到插件运行时工作区（config.ts 中 WORKSPACE_ROOT = <plugin_root>/workspace/）
+PLUGIN_WS="${PLUGIN_DIR}/workspace"
+mkdir -p "${PLUGIN_WS}/templates"
 for tpl in xiaohongshu-creation.json; do
   if [ -f "${PLUGIN_DIR}/templates/${tpl}" ]; then
-    cp "${PLUGIN_DIR}/templates/${tpl}" "${PLUGIN_WORKSPACE}/templates/${tpl}"
+    cp "${PLUGIN_DIR}/templates/${tpl}" "${PLUGIN_WS}/templates/${tpl}"
     echo "  ✓ ${tpl}"
   fi
 done
@@ -65,8 +67,9 @@ if [ -f "${PLUGIN_DIR}/templates/xiaohongshu-creation.json" ]; then
 fi
 
 # 拷贝开发指导到 agent-guides
+mkdir -p "${PLUGIN_WS}/agent-guides"
 if [ -f "${PLUGIN_DIR}/docs/部虾做的Agents工作流开发指导.md" ]; then
-  cp "${PLUGIN_DIR}/docs/部虾做的Agents工作流开发指导.md" "${PLUGIN_WORKSPACE}/agent-guides/部虾做的Agents工作流开发指导.md"
+  cp "${PLUGIN_DIR}/docs/部虾做的Agents工作流开发指导.md" "${PLUGIN_WS}/agent-guides/部虾做的Agents工作流开发指导.md"
   echo "  ✓ 部虾做的Agents工作流开发指导.md"
 fi
 
