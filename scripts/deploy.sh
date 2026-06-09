@@ -382,6 +382,19 @@ fi
 cd - > /dev/null
 echo "✓ 步骤 8 完成"
 
+# ---------- 步骤 9: 重启 Gateway ----------
+echo ""
+echo "=== 步骤 9: 重启 Gateway ==="
+if command -v openclaw &>/dev/null; then
+  openclaw gateway stop 2>/dev/null || true
+  sleep 2
+  openclaw gateway start 2>/dev/null || openclaw gateway 2>/dev/null &
+  sleep 5
+  echo "✓ Gateway 已重启"
+else
+  echo "⚠ openclaw 不可用，请手动执行: openclaw gateway restart"
+fi
+
 # ---------- 完成 ----------
 echo ""
 echo "============================================"
@@ -390,15 +403,9 @@ echo "============================================"
 echo ""
 echo "已部署 ${app_count} 个应用"
 echo ""
-echo "已安装 Skill: multi-search-engine, ai-humanizer, fact-check, fact-checker-cn, social-media-publish, xiaohongshu-mcp"
+echo "Gateway 已自动重启，可直接使用"
 echo ""
-echo "下一步："
-echo "  1. openclaw gateway restart"
-echo "  2. 回到 OpenClaw dashboard"
-echo ""
-echo "小红书发布登录："
-echo "  首次部署：${OPENCLAW_HOME}/mcp-servers/xiaohongshu/xiaohongshu-login-linux-amd64"
-echo "  在本机有浏览器的环境执行 → 手机扫码 → session.data 复制回该目录"
-echo "  换号：删除 session.data，重新执行上述步骤"
+echo "小红书发布登录（需手动）："
+echo "  ${OPENCLAW_HOME}/mcp-servers/xiaohongshu/xiaohongshu-login-linux-amd64"
 echo ""
 echo "验证: openclaw plugins inspect multi-agent-pipeline --runtime"
