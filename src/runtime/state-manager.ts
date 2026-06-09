@@ -295,8 +295,7 @@ export class StateManager {
 
   private async loadTemplateFromState(state: PipelineState): Promise<Template> {
     const { WorkspaceConfigManager } = await import('../tools/workspace-config.js');
-    const { SEED_TEMPLATES_DIR } = await import('../config.js');
-    const configManager = new WorkspaceConfigManager(SEED_TEMPLATES_DIR);
+    const configManager = new WorkspaceConfigManager(this.workspaceRoot);
     return await configManager.readTemplate(state.template_name);
   }
 
