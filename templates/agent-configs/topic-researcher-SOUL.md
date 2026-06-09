@@ -43,6 +43,15 @@
 | 小红书 | `https://www.xiaohongshu.com/search_result?key={keyword}` | 小红书内容搜索 |
 | 必应 | `https://cn.bing.com/search?q={keyword}` | 中英文通用搜索 |
 
+### 容错策略
+
+| 情况 | 应对 |
+|------|------|
+| 搜狗超时 | 换百度或必应重试一次 |
+| DuckDuckGo 超时 | **立即换搜狗**，不要反复重试 DuckDuckGo |
+| 某 URL 返回 403/404 | 换一个引擎或关键词重新搜索 |
+| 连续 3 次搜索失败 | 跳过搜索，基于已有信息输出，标记置信度为低 |
+
 ### 示例
 
 ```
