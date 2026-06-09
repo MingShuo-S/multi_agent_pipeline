@@ -14,6 +14,7 @@ const { mockFs, resetFs, setFile } = vi.hoisted(() => {
   const norm = (p: string) => p.replace(/\\/g, '/');
   return {
     mockFs: {
+      mkdirSync: () => {},
       promises: {
         readFile: async (p: string) => {
           const k = norm(p);
@@ -78,9 +79,12 @@ describe('StateManager', () => {
   beforeEach(() => {
     resetFs();
     vi.clearAllMocks();
-    // Put template where loadTemplateFromState looks:
-    // new WorkspaceConfigManager(SEED_TEMPLATES_DIR).readTemplate('test-template')
-    // = path.join(SEED_TEMPLATES_DIR, 'templates', 'test-template.json')
+    // WorkspaceConfigManager(WR).readTemplate('test-template') reads from:
+    //   path.join(WR, 'templates', 'test-template.json') => C:/workspace/templates/test-template.json
+    // loadTemplateFromState (used by advanceStage) constructs a new WorkspaceConfigManager(this.workspaceRoot)
+    // where this.workspaceRoot = WR = 'C:/workspace'
+    setFile(`${WR}/templates/test-template.json`, JSON.stringify(testTemplate));
+    // SEED_TEMPLATES_DIR path for workspace_config's initTemplate search
     setFile(`${templateDir}/templates/test-template.json`, JSON.stringify(testTemplate));
     sm = new StateManager(WR, UID, PID);
   });
