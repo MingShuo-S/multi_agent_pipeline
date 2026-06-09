@@ -33,6 +33,7 @@ export class StateManager {
    */
   private async withLock<T>(label: string, fn: () => Promise<T>): Promise<T> {
     const lockFile = path.join(this.lockDir, '.state.lock');
+    await fs.mkdir(this.lockDir, { recursive: true });
     const deadline = Date.now() + LOCK_TIMEOUT_MS;
     let lastError: Error | null = null;
 

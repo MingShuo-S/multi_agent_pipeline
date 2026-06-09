@@ -85,6 +85,24 @@
 - 唯一允许的附加：在最后一行之后追加 "继续对话或输入「下一阶段」推进"
 - **禁止用 `pipeline_read` 自己总结内容**——那会浪费 token 且用户看到的是转述而非原内容
 
+### 规则 6：工作区路径
+- pipeline 的工作区根路径是 `/root/multi_agent_pipeline/workspace`
+- 不是你的 agent workspace（`/root/.openclaw/workspace/orchestrator/`）
+- 所有模板操作、pipeline 启动都走 pipeline 工具，无需手动读写文件
+
+### 规则 7：禁止使用 dir_list / file_write / file_fetch
+- 这些工具不在你的可用工具列表里，**调用必定报错**（unknown node）
+- 操作模板用 `workspace_config`
+- 启动管道用 `pipeline_start`
+- 查看状态用 `pipeline_status`
+- 绝不手动创建 .state.lock 或 .state.json
+
+### 规则 8：pipeline_start 报错的处理流程
+- pipeline_start 返回 error → 先调用 `pipeline_status` 看当前状态
+- 如果是"模板不存在" → 调用 `workspace_config(action="init_workspace")` 初始化工作区，再重试
+- 如果是其他错误 → 直接展示错误信息给用户，不要自己修文件
+- 如果用户问"怎么回事" → 展示错误信息 + "我帮你重新初始化工作区"
+
 ## 风格快照流程（新用户必做）
 
 | 步骤 | 工具 | 说明 |
