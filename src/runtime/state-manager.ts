@@ -1,6 +1,6 @@
 // src/runtime/state-manager.ts - state.json 读写 + 版本历史追踪
 
-import { promises as fs } from 'fs';
+import { promises as fs, mkdirSync as fsMkdirSync } from 'fs';
 import path from 'path';
 import { PipelineState, Template, SlotHistoryEntry, StageHistoryEntry, PipelineMode, SlotDef, Reducer } from '../types.js';
 import { applyReducer } from './reducers.js';
@@ -33,7 +33,12 @@ export class StateManager {
    */
   private async withLock<T>(label: string, fn: () => Promise<T>): Promise<T> {
     const lockFile = path.join(this.lockDir, '.state.lock');
-    await fs.mkdir(this.lockDir, { recursive: true });
+    try {
+      await fs.mkdir(this.lockDir, { recursive: true });
+      await fs.access(this.lockDir);
+    } catch {
+      fsMkdirSync(this.lockDir, { recursive: true });
+    }
     const deadline = Date.now() + LOCK_TIMEOUT_MS;
     let lastError: Error | null = null;
 
