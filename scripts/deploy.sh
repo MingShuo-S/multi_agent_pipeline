@@ -182,6 +182,8 @@ if not bayesdl_key or bayesdl_key.startswith('sk-你的') or bayesdl_key == '${B
             {"id":"qwen3-max","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
             {"id":"qwen3.5-plus","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
             {"id":"kimi-k2.5","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
+            {"id":"kimi-k2.6","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
+            {"id":"step-3.5-flash","contextWindow":128000,"maxTokens":4096,"input":["text"],"cost":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0},"reasoning":False},
         ]
     }
 
@@ -209,7 +211,9 @@ cfg['agents'] = {
             "bayesdl/deepseek-v4-flash": {"alias": "DeepSeek V4 Flash"},
             "bayesdl/qwen3-max": {"alias": "Qwen3 Max"},
             "bayesdl/qwen3.5-plus": {"alias": "Qwen3.5 Plus"},
-            "bayesdl/kimi-k2.5": {"alias": "Kimi K2.5"}
+            "bayesdl/kimi-k2.5": {"alias": "Kimi K2.5"},
+            "bayesdl/kimi-k2.6": {"alias": "Kimi K2.6"},
+            "bayesdl/step-3.5-flash": {"alias": "Step 3.5 Flash"}
         }
     },
     "list": [
