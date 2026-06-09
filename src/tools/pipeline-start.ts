@@ -88,7 +88,7 @@ async function executeRelayDialogue(
   );
 
   const sessionKey = `${currentStage.agent}:${userId}:${projectId}`;
-  const agentResponse = await callSubagent(api, sessionKey, prompt, undefined, true);
+  const agentResponse = await callSubagent(api, sessionKey, prompt);
 
   const slotName = currentStage.allow_write[0];
   if (slotName) {
