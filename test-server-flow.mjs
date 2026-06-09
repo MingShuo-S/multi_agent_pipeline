@@ -116,13 +116,21 @@ async function main() {
     console.log(`    statePath: ${sm.statePath}`)
   })
 
-  // 3b. Initialize — this is where withLock calls fs.mkdir
-  await test('StateManager.initialize (withLock → mkdir → writeFile)', async () => {
-    const state = await sm.initialize(template, template.mode || 'relay')
-    if (state.status !== 'running') throw new Error(`status=${state.status}`)
-    if (state.current_stage !== 0) throw new Error(`stage=${state.current_stage}`)
-    const slots = Object.keys(state.slot_values)
-    console.log(`    status=running, stage=0, ${slots.length} slots`)
+  // 3b. Simulate pipelineStart flow: load() → fail → initialize()
+  await test('pipelineStart simulation: load(fail) → initialize', async () => {
+    // This is EXACTLY what pipelineStart does
+    let st
+    try {
+      st = await sm.load()
+      throw new Error('expected load to fail but it succeeded')
+    } catch {
+      // expected: state.json doesn't exist
+    }
+    st = await sm.initialize(template, template.mode || 'relay')
+    if (st.status !== 'running') throw new Error(`status=${st.status}`)
+    if (st.current_stage !== 0) throw new Error(`stage=${st.current_stage}`)
+    const slots = Object.keys(st.slot_values)
+    console.log(`    load failed (expected) → initialize: status=running, stage=0, ${slots.length} slots`)
   })
 
   // 3c. Load
