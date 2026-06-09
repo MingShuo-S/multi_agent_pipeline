@@ -52,10 +52,10 @@ if ! npm config get registry 2>/dev/null | grep -q "npmmirror"; then
   npm config set registry https://registry.npmmirror.com
 fi
 
-# 配置 git 镜像（如果未配置）
-if ! git config --global --get url."https://ghproxy.net/".insteadOf >/dev/null 2>&1; then
-  echo "  配置 git 镜像..."
-  git config --global url."https://ghproxy.net/".insteadOf "https://"
+# 配置 git 镜像（仅 GitHub，如果未配置）
+if ! git config --global --get url."https://ghproxy.net/https://github.com/".insteadOf >/dev/null 2>&1; then
+  echo "  配置 git 镜像（ghproxy + GitHub）..."
+  git config --global url."https://ghproxy.net/https://github.com/".insteadOf "https://github.com/"
 fi
 
 echo "  安装依赖（首次可能需要 1-2 分钟）..."
