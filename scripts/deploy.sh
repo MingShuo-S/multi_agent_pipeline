@@ -390,18 +390,9 @@ if [ -f "$XHS_MCP_BIN" ]; then
 fi
 echo "✓ 步骤 7 完成"
 
-# ---------- 步骤 8: 生成插件清单（可选）----------
-echo "=== 步骤 8: 生成插件清单 ==="
-cd "${PLUGIN_DIR}"
-if command -v openclaw &>/dev/null; then
-  openclaw plugins build --entry ./dist/index.js 2>&1 || echo "⚠ plugins build 非关键步骤，跳过"
-fi
-cd - > /dev/null
-echo "✓ 步骤 8 完成"
-
-# ---------- 步骤 9: 重启 Gateway ----------
+# ---------- 步骤 8: 重启 Gateway ----------
 echo ""
-echo "=== 步骤 9: 重启 Gateway ==="
+echo "=== 步骤 8: 重启 Gateway ==="
 if command -v openclaw &>/dev/null; then
   openclaw gateway stop 2>/dev/null || true
   sleep 2
