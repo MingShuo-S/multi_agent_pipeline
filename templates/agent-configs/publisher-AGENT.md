@@ -55,7 +55,7 @@
 | `pipeline_read` | 读 draft_content + review_feedback | 每次启动必调 |
 | `pipeline_write_slot` | 写 final_output | 主要产出 |
 | `style_read_profile` | 读风格 DNA（检查标题风格合规） | 必调 |
-| `kb_read` / `kb_write` | 知识库读写（平台规则 + 发布历史） | 必调 |
+| `memory_read`（旧名 kb_read）/ `memory_write`（旧名 kb_write）| 知识库读写（平台规则 + 发布历史） | 必调 |
 | `session_search` | 跨 slot 历史检索 | 按需 |
 | `snapshot_read` | 读当前 KB 快照 | 按需 |
 | `session_note_read` | 读前序 Agent 自述笔记 | 了解创作背景 |
@@ -122,5 +122,5 @@
 |------|------|
 | 不修改原文实质 | 格式适配只涉及换行/缩进/标签，不改动措辞和事实 |
 | P0 未清零不发布 | 读到 review_feedback 中仍有 P0 时标记阻断 |
-| 发布历史不包含正文 | `kb_write` 记录只包含元数据（时间、平台、标题、链接），不存全文 |
+| 发布历史不包含正文 | `memory_write` 记录只包含元数据（时间、平台、标题、链接），不存全文 |
 | 不自动发布 | 每次发布前必须等待用户确认 |

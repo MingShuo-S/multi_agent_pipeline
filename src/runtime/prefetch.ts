@@ -23,8 +23,8 @@ export interface PrefetchEntry {
  * 预取上下文
  *
  * 搜索策略：
- * 1. 知识库 (_shared/{userId}/kb.json)
- * 2. 风格档案 (_shared/{userId}/style-dna.json)
+ * 1. 知识库 (_profiles/{userId}/kb.json)
+ * 2. 风格档案 (_profiles/{userId}/profile.json)
  * 3. Agent 指南 (agent-guides/)
  * 4. 历史项目 (projects/{userId}/)
  */
@@ -101,7 +101,7 @@ async function searchKB(
   keywords: string[]
 ): Promise<PrefetchEntry[]> {
   const results: PrefetchEntry[] = [];
-  const kbPath = path.join(workspaceRoot, '_shared', userId, 'kb.json');
+  const kbPath = path.join(workspaceRoot, '_profiles', userId, 'memory.json');
 
   try {
     const content = await fs.readFile(kbPath, 'utf-8');
@@ -133,7 +133,7 @@ async function searchStyle(
   keywords: string[]
 ): Promise<PrefetchEntry[]> {
   const results: PrefetchEntry[] = [];
-  const stylePath = path.join(workspaceRoot, '_shared', userId, 'style-dna.json');
+  const stylePath = path.join(workspaceRoot, '_profiles', userId, 'profile.json');
 
   try {
     const content = await fs.readFile(stylePath, 'utf-8');

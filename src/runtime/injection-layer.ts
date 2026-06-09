@@ -5,18 +5,16 @@
 //   COLD → KB + persona（不注入，通过工具按需读取）
 //   rules/ → 对应 AGENTS.md + 05-全局规则体系（所有 agent 读取）
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import type { AgentRole, PipelineState, Template } from '../types.js';
 import { StyleSystem } from '../tools/style-system.js';
 
 export class InjectionLayer {
-  private rulesDir: string;
-
   constructor(
     private workspaceRoot: string,
     private userId: string,
-  ) {
-    this.rulesDir = workspaceRoot;
-  }
+  ) {}
 
   async buildForRole(
     role: AgentRole,
@@ -41,36 +39,31 @@ export class InjectionLayer {
       `这是不可覆盖的硬规则。你的 Agent SOUL 定义必须遵守以下规则。\n`
     );
 
-    // 只有 content-writer 拿到风格 DNA
+    // 只有 content-writer 拿到风格 PROFILE
     if (role === 'content-writer') {
       const profile = await styleSystem.readProfile();
-      if (profile?.dna) {
-        const dna = profile.dna;
-
-        if (dna.corePrinciples?.length > 0) {
+      if (profile) {
+        if (profile.corePrinciples?.length > 0) {
           parts.push(
             `【风格硬规则（HOT）】\n` +
             `以下核心原则必须严格遵守:\n` +
-            dna.corePrinciples.map((p: string) => `  - ${p}`).join('\n') + '\n'
+            profile.corePrinciples.map((p: string) => `  - ${p}`).join('\n') + '\n'
           );
         }
 
-        if ((dna.forbiddenPatterns?.length > 0) || (dna.vocabulary?.forbidden?.length > 0) || (dna.vocabulary?.highFreq?.length > 0)) {
+        if ((profile.forbiddenPatterns?.length > 0) || (profile.vocabulary?.forbidden?.length > 0) || (profile.vocabulary?.highFreq?.length > 0)) {
           const warmLines: string[] = ['【风格约束（WARM）】'];
-          if (dna.forbiddenPatterns?.length > 0) {
+          if (profile.forbiddenPatterns?.length > 0) {
             warmLines.push('禁止模式（绝对不要出现）:');
-            for (const p of dna.forbiddenPatterns) warmLines.push(`  - ${p}`);
+            for (const p of profile.forbiddenPatterns) warmLines.push(`  - ${p}`);
           }
-          if (dna.vocabulary?.forbidden?.length > 0) {
+          if (profile.vocabulary?.forbidden?.length > 0) {
             warmLines.push('禁用词汇:');
-            for (const v of dna.vocabulary.forbidden) warmLines.push(`  - ${v}`);
+            for (const v of profile.vocabulary.forbidden) warmLines.push(`  - ${v}`);
           }
-          if (dna.vocabulary?.highFreq?.length > 0) {
+          if (profile.vocabulary?.highFreq?.length > 0) {
             warmLines.push('用户高频用词（输出应自然匹配）:');
-            for (const v of dna.vocabulary.highFreq) warmLines.push(`  - ${v}`);
-          }
-          if (dna.growthDirection) {
-            warmLines.push(`成长方向: ${dna.growthDirection} — 输出体现目标状态。`);
+            for (const v of profile.vocabulary.highFreq) warmLines.push(`  - ${v}`);
           }
           parts.push(warmLines.join('\n') + '\n');
         }
@@ -81,11 +74,27 @@ export class InjectionLayer {
     parts.push(
       `【工作区全局规则】\n` +
       `- 工作区根目录: ${this.workspaceRoot}\n` +
-      `- 共享知识库: ${this.workspaceRoot}/_shared/${this.userId}/\n` +
+      `- 用户知识区: ${this.workspaceRoot}/_profiles/${this.userId}/\n` +
+      `- 内置知识: ${this.workspaceRoot}/knowledge/（只读系统文档，用 knowledge_read 查询）\n` +
       `- 规则文档: ${this.workspaceRoot}/rules/（温度分层、检索补全、条件反射、防幻觉）\n` +
       `- 所有产出必须通过 pipeline_write_slot 写入，不得直接返回在对话中\n` +
       `- 完成任务后调用 style_record_feedback 记录新发现的用户偏好\n`
     );
+
+    // BUILTIN: knowledge/ 目录注入（列出可用文档）
+    try {
+      const knowledgeDir = path.join(this.workspaceRoot, 'knowledge');
+      await fs.access(knowledgeDir);
+      const entries = await fs.readdir(knowledgeDir, { withFileTypes: true });
+      const mdFiles = entries.filter(e => e.isFile() && (e.name.endsWith('.md') || e.name.endsWith('.txt')));
+      if (mdFiles.length > 0) {
+        parts.push(
+          `【内置知识文档】\n` +
+          `可用文档（\`knowledge_read\` 按名称读取）:\n` +
+          mdFiles.map(e => `  - ${e.name}`).join('\n') + '\n'
+        );
+      }
+    } catch {}
 
     return parts.join('\n');
   }
@@ -98,7 +107,7 @@ export class InjectionLayer {
       `当前: stage ${state.current_stage + 1}/${template.stages.length}\n` +
       `项目: ${projectId || 'unknown'}\n` +
       `如果用户纠正了你的输出 → 用 style_record_feedback 记录\n` +
-      `如果用户确认了某些内容 → 用 kb_write 写入知识库\n`
+      `如果用户确认了某些内容 → 用 memory_write 写入记忆库\n`
     );
 
     return parts.join('\n');

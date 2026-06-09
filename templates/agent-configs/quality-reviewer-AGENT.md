@@ -59,7 +59,7 @@
 | `pipeline_write_slot` | 写 review_feedback | 主要产出 |
 | `pipeline_add_remark` | 微小建议（不走 feedback 通道的小意见） | 可选 |
 | `style_read_profile` | 读风格 DNA（检查改味） | 必调 |
-| `kb_read` / `kb_write` | 知识库读写（平台规则 + 审核历史） | 必调 |
+| `memory_read`（旧名 kb_read）/ `memory_write`（旧名 kb_write）| 知识库读写（平台规则 + 审核历史） | 必调 |
 | `session_search` | 跨 slot 历史检索（查历史同类审核记录） | 按需 |
 | `snapshot_read` | 读当前 KB 快照 | 参考冻结知识状态 |
 | `session_note_read` | 读前序 Agent 自述笔记 | 了解创作背景 |

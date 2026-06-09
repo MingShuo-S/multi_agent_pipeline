@@ -123,7 +123,7 @@ export async function sessionSearchAll(
   userId: string,
   query: SearchQuery,
 ): Promise<SearchResult[]> {
-  const projectsDir = path.join(workspaceRoot, '_shared', userId, 'projects');
+  const projectsDir = path.join(workspaceRoot, 'projects', userId);
   const results: SearchResult[] = [];
   const limit = query.limit ?? MAX_SEARCH_RESULTS;
 
@@ -140,23 +140,7 @@ export async function sessionSearchAll(
       results.push(...partial);
       if (results.length >= limit) break;
     }
-  } catch {
-    // projects dir does not exist under _shared — try workspace/projects/ path
-    const altProjectsDir = path.join(workspaceRoot, 'projects', userId);
-    try {
-      await fs.access(altProjectsDir);
-      const altEntries = await fs.readdir(altProjectsDir, { withFileTypes: true });
-      const altProjectIds = altEntries.filter(e => e.isDirectory()).map(e => e.name);
-      for (const pid of altProjectIds) {
-        const partial = await sessionSearch(workspaceRoot, userId, pid, {
-          ...query,
-          limit: limit - results.length,
-        });
-        results.push(...partial);
-        if (results.length >= limit) break;
-      }
-    } catch { /* no projects exist yet */ }
-  }
+  } catch { /* no projects exist yet */ }
 
   return results;
 }
@@ -178,7 +162,7 @@ export async function freezeSnapshot(
   projectId: string,
 ): Promise<FrozenSnapshotContent> {
   const styleSystem = new StyleSystem(workspaceRoot, userId);
-  const snapshotDir = path.join(workspaceRoot, '_shared', userId, 'memory');
+  const snapshotDir = path.join(workspaceRoot, '_profiles', userId, 'memory');
   await fs.mkdir(snapshotDir, { recursive: true });
 
   // 读当前 KB 状态
@@ -189,7 +173,7 @@ export async function freezeSnapshot(
   const sessionNote = await readSessionNoteInner(snapshotDir);
 
   // 序列化
-  const styleDnaText = profile ? JSON.stringify(profile.dna, null, 2).substring(0, 1500) : '(无风格 DNA)';
+  const styleDnaText = profile ? JSON.stringify(profile, null, 2).substring(0, 1500) : '(无风格 DNA)';
   const personaText = persona || '(无用户画像)';
   const insightsText = insights || '(无洞察记录)';
   const topKBText = kbEntries.length > 0
@@ -244,7 +228,7 @@ export async function readSnapshot(
   workspaceRoot: string,
   userId: string,
 ): Promise<string | null> {
-  const p = path.join(workspaceRoot, '_shared', userId, 'memory', SNAPSHOT_FILE);
+  const p = path.join(workspaceRoot, '_profiles', userId, 'memory', SNAPSHOT_FILE);
   try {
     return await fs.readFile(p, 'utf-8');
   } catch {
@@ -279,7 +263,7 @@ export async function writeSessionNote(
   userId: string,
   content: string,
 ): Promise<void> {
-  const dir = path.join(workspaceRoot, '_shared', userId, 'memory');
+  const dir = path.join(workspaceRoot, '_profiles', userId, 'memory');
   await fs.mkdir(dir, { recursive: true });
 
   const truncated = content.length > MEMORY_LIMIT_CHARS
@@ -303,7 +287,7 @@ export async function readSessionNote(
   workspaceRoot: string,
   userId: string,
 ): Promise<string | null> {
-  return readSessionNoteInner(path.join(workspaceRoot, '_shared', userId, 'memory'));
+  return readSessionNoteInner(path.join(workspaceRoot, '_profiles', userId, 'memory'));
 }
 
 /**
@@ -317,7 +301,7 @@ export async function writeHandoffNote(
   toAgent: string,
   summary: string,
 ): Promise<void> {
-  const dir = path.join(workspaceRoot, '_shared', userId, 'memory');
+  const dir = path.join(workspaceRoot, '_profiles', userId, 'memory');
   await fs.mkdir(dir, { recursive: true });
 
   const content = [
@@ -364,6 +348,9 @@ export async function autoCompress(
   const styleSystem = new StyleSystem(workspaceRoot, userId);
   const result: CompressResult = { compressed: [], freed: 0, kept: 0, entriesKept: 0 };
 
+  // 触发 kb.json → memory.json 迁移（若有 legacy）
+  await styleSystem.migrateLegacyKB();
+
   // --- 压缩 insights.md ---
   const insights = await styleSystem.readInsights();
   if (insights && insights.length > INSIGHT_COMPRESS_AT) {
@@ -388,7 +375,7 @@ export async function autoCompress(
 
     await styleSystem.appendInsight(`[自动压缩] insights.md: ${lines.length}→${merged.length} 行, 释放 ${freedChars} 字符`, 'system');
     // 直接写更新后的内容（通过 append 做不到覆盖，用文件写）
-    const insightsPath = path.join(workspaceRoot, '_shared', userId, 'memory', 'insights.md');
+    const insightsPath = path.join(workspaceRoot, '_profiles', userId, 'memory', 'insights.md');
     await fs.writeFile(insightsPath, compressed, 'utf-8');
     // 再补一条压缩记录
     await styleSystem.appendInsight(`[自动压缩] 完成: 释放 ${freedChars} 字符`, 'system');
@@ -398,7 +385,7 @@ export async function autoCompress(
     result.kept = merged.length;
   }
 
-  // --- 压缩 kb.json ---
+  // --- 压缩 memory.json（原 kb.json 的 KB 条目）---
   const kbEntries = await styleSystem.readKB();
   if (kbEntries.length > KB_COMPRESS_AT) {
     // 保留 high 置信度的所有条目 + 最近的 medium/low
@@ -411,20 +398,20 @@ export async function autoCompress(
     result.entriesKept = merged.length;
     result.freed += (kbEntries.length - merged.length);
 
-    // 压缩策略：覆盖 kb.json
-    const kbPath = path.join(workspaceRoot, '_shared', userId, 'kb.json');
+    // 压缩策略：覆盖 memory.json
+    const memPath = path.join(workspaceRoot, '_profiles', userId, 'memory.json');
     const compressed = [
-      `// 知识库（${COMPRESSED_MARKER} ${new Date().toISOString()}）`,
+      `// 记忆库（${COMPRESSED_MARKER} ${new Date().toISOString()}）`,
       `// 原 ${kbEntries.length} 条目 → 保留 ${merged.length} 条目`,
       `// 高置信度 ${highConf.length} + medium/low 最近 20 条`,
       ...merged.map((e: KBEntry) => JSON.stringify(e)),
     ].join('\n');
 
     // 写回标准 JSON
-    await fs.writeFile(kbPath, JSON.stringify(merged, null, 2), 'utf-8');
+    await fs.writeFile(memPath, JSON.stringify(merged, null, 2), 'utf-8');
 
-    result.compressed.push('kb.json');
-    await styleSystem.appendInsight(`[自动压缩] kb.json: ${kbEntries.length}→${merged.length} 条目`, 'system');
+    result.compressed.push('memory.json');
+    await styleSystem.appendInsight(`[自动压缩] memory.json: ${kbEntries.length}→${merged.length} 条目`, 'system');
   }
 
   return result;
@@ -441,19 +428,26 @@ export async function shouldCompress(
   const path = await import('path');
 
   // 检查 insights.md
-  const insightsPath = path.default.join(workspaceRoot, '_shared', userId, 'memory', 'insights.md');
+  const insightsPath = path.default.join(workspaceRoot, '_profiles', userId, 'memory', 'insights.md');
   try {
     const stat = await fs.stat(insightsPath);
     if (stat.size > INSIGHT_COMPRESS_AT) return true;
   } catch {}
 
-  // 检查 kb.json
-  const kbPath = path.default.join(workspaceRoot, '_shared', userId, 'kb.json');
+  // 检查 memory.json（fallback to kb.json）
+  const memPath = path.default.join(workspaceRoot, '_profiles', userId, 'memory.json');
   try {
-    const raw = await fs.readFile(kbPath, 'utf-8');
+    const raw = await fs.readFile(memPath, 'utf-8');
     const entries = JSON.parse(raw);
     if (Array.isArray(entries) && entries.length > KB_COMPRESS_AT) return true;
-  } catch {}
+  } catch {
+    const kbPath = path.default.join(workspaceRoot, '_profiles', userId, 'kb.json');
+    try {
+      const raw = await fs.readFile(kbPath, 'utf-8');
+      const entries = JSON.parse(raw);
+      if (Array.isArray(entries) && entries.length > KB_COMPRESS_AT) return true;
+    } catch {}
+  }
 
   return false;
 }

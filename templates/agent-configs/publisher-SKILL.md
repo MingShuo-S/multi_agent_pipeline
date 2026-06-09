@@ -21,7 +21,7 @@ pipeline_read(draft_content + review_feedback)
   ↓
 [Step 6] 发布执行 —— 自动或半自动跨平台发布
   ↓
-[Step 7] 历史记录 —— kb_write 写入发布元数据
+[Step 7] 历史记录 —— memory_write（旧名 kb_write）写入发布元数据
 ```
 
 ---
@@ -63,11 +63,11 @@ pipeline_read(draft_content + review_feedback)
 
 | 检查项 | 方法 | 阻断/警告 |
 |--------|------|----------|
-| 字数限制 | `kb_read("platform_rules/{platform}")` | 超出 → 阻断 |
-| 敏感词 | `kb_read("platform_rules/{platform}/sensitive_words")` | 命中 → 阻断 |
-| 封面/图片要求 | `kb_read("platform_rules/{platform}/media")` | 缺乏 → 警告 |
-| 标题字数 | `kb_read("platform_rules/{platform}/title")` | 超出 → 警告 |
-| 链接政策 | `kb_read("platform_rules/{platform}/links")` | 违规 → 阻断 |
+| 字数限制 | `memory_read("platform_rules/{platform}")`（旧名 kb_read）| 超出 → 阻断 |
+| 敏感词 | `memory_read("platform_rules/{platform}/sensitive_words")` | 命中 → 阻断 |
+| 封面/图片要求 | `memory_read("platform_rules/{platform}/media")` | 缺乏 → 警告 |
+| 标题字数 | `memory_read("platform_rules/{platform}/title")` | 超出 → 警告 |
+| 链接政策 | `memory_read("platform_rules/{platform}/links")` | 违规 → 阻断 |
 | 新规预警 | `multi-search-engine` 搜索平台最新公告 | 重大变化 → 阻断 |
 
 ### 规则来源优先级
@@ -197,12 +197,12 @@ pipeline_read(draft_content + review_feedback)
 
 ### 7a: 归档发布记录
 
-`kb_write` 写入永久发布记录。
+`memory_write` 写入永久发布记录。
 
 ```json
 {
   "category": "publish_history",
-  "path": "_shared/{userId}/content/{platform}/",
+  "path": "_profiles/{userId}/content/{platform}/",
   "entry": {
     "publish_id": "pub_20260608_001",
     "timestamp": "2026-06-08T10:00:00Z",
@@ -218,12 +218,12 @@ pipeline_read(draft_content + review_feedback)
 
 ### 7b: 写待回采记录
 
-额外写一条到 `_shared/{userId}/analytics/pending/`，告诉 post-analyst 这篇内容在等数据。
+额外写一条到 `_profiles/{userId}/analytics/pending/`，告诉 post-analyst 这篇内容在等数据。
 
 ```json
 {
   "category": "pending_analytics",
-  "path": "_shared/{userId}/analytics/pending/",
+  "path": "_profiles/{userId}/analytics/pending/",
   "entry": {
     "publish_id": "pub_20260608_001",
     "pipeline_id": "{pipeline_id}",

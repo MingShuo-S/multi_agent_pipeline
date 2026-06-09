@@ -30,7 +30,7 @@ pipeline_read(draft_content, research_notes, article_idea)
 | `research_notes` | `pipeline_read('research_notes')` | 唯一的事实对照基准 |
 | `article_idea` | `pipeline_read('article_idea')` | 用户原始意图 |
 | 风格 DNA | `style_read_profile` | 检查写作是否改味 |
-| 平台规则 | `kb_read('platform/{platform}/rules')` | 敏感词、字数限制、格式规范 |
+| 平台规则 | `memory_read('platform/{platform}/rules')`（旧名 kb_read）| 敏感词、字数限制、格式规范 |
 | KB 快照 | `snapshot_read` | 了解当前系统知识状态 |
 | session_note | `session_note_read` | 读 content-writer 的自述笔记 |
 
@@ -89,7 +89,7 @@ pipeline_read(draft_content, research_notes, article_idea)
 
 ### 2.3 平台合规（权重 25%）
 
-从 `kb_read` 获取平台规则后逐项检查：
+从 `memory_read` 获取平台规则后逐项检查：
 
 | 平台 | 检查项 | 严重度 |
 |------|--------|--------|
@@ -224,7 +224,7 @@ content-writer 修改 `draft_content` → pipeline 重新 advance 到 review sta
 | 审核前 | `session_note_read` | 读 content-writer 的自述笔记 |
 | 审核前 | `session_search(keyword=选题)` | 查历史同类审核记录 |
 | 审核中 | `group:web` | 事实交叉验证 + 撞车检测 |
-| 审核后 | `kb_write(category="insight")` | 记录常见问题，下次改进 |
+| 审核后 | `memory_write(category="insight")` | 记录常见问题，下次改进 |
 
 ---
 
@@ -234,7 +234,7 @@ content-writer 修改 `draft_content` → pipeline 重新 advance 到 review sta
 |------|------|
 | research_notes 不存在或为空 | 仍按文本审，事实核查标注"无原始调研数据可对比" |
 | 联网搜索全部失败 | 撞车检测和事实验证降级为纯文本审查，标注"联网未验证" |
-| 用户要求跳过审核 | pipeline 跳过此 stage，用户确认时记录 `kb_write("qa_skip_reason")` |
+| 用户要求跳过审核 | pipeline 跳过此 stage，用户确认时记录 `memory_write("qa_skip_reason")` |
 | 用户不认可审核结果 | 不争论，标注"已通知用户后仍坚持发布"，放行 |
 | 风格 DNA 与平台规则冲突 | 以风格 DNA 优先，标注"风格 DNA > 平台默认建议" |
 | 审核结果被用户反复驳回 | 标注"用户与审核存在分歧"，放行，记录到知识库 |

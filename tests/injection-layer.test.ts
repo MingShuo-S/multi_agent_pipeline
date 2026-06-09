@@ -11,9 +11,22 @@ const { mockFs, resetFs, setFile } = vi.hoisted(() => {
         readFile: async (p: string) => { const k = norm(p); if (files.has(k)) return files.get(k)!; throw enoent(p); },
         writeFile: async (p: string, c: string) => { files.set(norm(p), c); },
         mkdir: async () => {},
-        readdir: async (dir: string) => {
+        readdir: async (dir: string, opts?: any) => {
           const prefix = norm(dir) + '/';
-          return [...files.keys()].filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length).split('/')[0]);
+          const names = [...files.keys()].filter(k => k.startsWith(prefix)).map(k => k.slice(prefix.length));
+          return names.map(n => ({ name: n, isFile: () => true, isDirectory: () => false }));
+        },
+        access: async (p: string) => {
+          const k = norm(p);
+          if (files.has(k)) return;
+          const prefix = k.endsWith('/') ? k : k + '/';
+          if ([...files.keys()].some(fk => fk.startsWith(prefix))) return;
+          throw enoent(p);
+        },
+        unlink: async (p: string) => { files.delete(norm(p)); },
+        copyFile: async (src: string, dst: string) => {
+          const sk = norm(src);
+          if (files.has(sk)) files.set(norm(dst), files.get(sk)!);
         },
       },
     },
@@ -25,7 +38,7 @@ vi.mock('fs', () => mockFs);
 
 import { InjectionLayer } from '../src/runtime/injection-layer.js';
 
-const sharedDir = `${WR}/_shared/${UID}`;
+const sharedDir = `${WR}/_profiles/${UID}`;
 
 describe('InjectionLayer', () => {
   let layer: InjectionLayer;
@@ -34,14 +47,11 @@ describe('InjectionLayer', () => {
 
   describe('buildForRole', () => {
     it('content-writer 拿到风格 DNA headBlock', async () => {
-      setFile(`${sharedDir}/style-dna.json`, JSON.stringify(makeStyleProfile({
-        dna: {
-          corePrinciples: ['简洁', '口语化'],
-          syntaxPatterns: { preferedSentenceLength: 20 },
-          vocabulary: { highFreq: ['非常'], forbidden: ['首先'], techTerms: [] },
-          forbiddenPatterns: ['不要用感叹号'],
-          growthDirection: '更自然',
-        },
+      setFile(`${sharedDir}/profile.json`, JSON.stringify(makeStyleProfile({
+        corePrinciples: ['简洁', '口语化'],
+        syntaxPatterns: { preferedSentenceLength: 20 },
+        vocabulary: { highFreq: ['非常'], forbidden: ['首先'], techTerms: [] },
+        forbiddenPatterns: ['不要用感叹号'],
       })));
       const { headBlock, tailBlock } = await layer.buildForRole('content-writer', makeStateStage1Running(), simpleTemplate2Stage, PID);
       expect(headBlock).toContain('【强制系统指令】');
@@ -53,14 +63,14 @@ describe('InjectionLayer', () => {
       expect(headBlock).toContain('禁用词汇');
       expect(headBlock).toContain('首先');
       expect(headBlock).toContain('非常');
-      expect(headBlock).toContain('更自然');
+      expect(headBlock).toContain('非常');
       expect(tailBlock).toContain('【阶段约束】');
       expect(tailBlock).toContain('stage 2/2');
     });
 
     it('非 content-writer 不含风格 DNA', async () => {
-      setFile(`${sharedDir}/style-dna.json`, JSON.stringify(makeStyleProfile({
-        dna: { corePrinciples: ['简洁'], syntaxPatterns: {}, vocabulary: { highFreq: [], forbidden: [], techTerms: [] }, forbiddenPatterns: [], growthDirection: '' },
+      setFile(`${sharedDir}/profile.json`, JSON.stringify(makeStyleProfile({
+        corePrinciples: ['简洁'], syntaxPatterns: {}, vocabulary: { highFreq: [], forbidden: [], techTerms: [] }, forbiddenPatterns: [],
       })));
       const { headBlock } = await layer.buildForRole('topic-researcher', makeStateStage1Running(), simpleTemplate2Stage, PID);
       expect(headBlock).not.toContain('【风格硬规则（HOT）】');
@@ -74,14 +84,11 @@ describe('InjectionLayer', () => {
     });
 
     it('有 corePrinciples 但无 forbid/highFreq 时不含 WARM 段', async () => {
-      setFile(`${sharedDir}/style-dna.json`, JSON.stringify(makeStyleProfile({
-        dna: {
-          corePrinciples: ['简洁'],
-          syntaxPatterns: {},
-          vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
-          forbiddenPatterns: [],
-          growthDirection: '',
-        },
+      setFile(`${sharedDir}/profile.json`, JSON.stringify(makeStyleProfile({
+        corePrinciples: ['简洁'],
+        syntaxPatterns: {},
+        vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
+        forbiddenPatterns: [],
       })));
       const { headBlock } = await layer.buildForRole('content-writer', makeStateStage1Running(), simpleTemplate2Stage, PID);
       expect(headBlock).toContain('【风格硬规则（HOT）】');
@@ -99,7 +106,22 @@ describe('InjectionLayer', () => {
       expect(tailBlock).toContain('stage 2');
       expect(tailBlock).toContain(PID);
       expect(tailBlock).toContain('style_record_feedback');
-      expect(tailBlock).toContain('kb_write');
+      expect(tailBlock).toContain('memory_write');
+    });
+
+    it('knowledge/ 目录有文件时注入内置知识段', async () => {
+      setFile(`${WR}/knowledge/rules.md`, '# 全局规则');
+      setFile(`${WR}/knowledge/faq.md`, '# 常见问题');
+      const { headBlock } = await layer.buildForRole('orchestrator', makeStateStage1Running(), simpleTemplate2Stage, PID);
+      expect(headBlock).toContain('【内置知识文档】');
+      expect(headBlock).toContain('knowledge_read');
+      expect(headBlock).toContain('rules.md');
+      expect(headBlock).toContain('faq.md');
+    });
+
+    it('knowledge/ 目录为空时不注入内置知识段', async () => {
+      const { headBlock } = await layer.buildForRole('orchestrator', makeStateStage1Running(), simpleTemplate2Stage, PID);
+      expect(headBlock).not.toContain('【内置知识文档】');
     });
   });
 });

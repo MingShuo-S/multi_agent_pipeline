@@ -1,18 +1,15 @@
-// src/tools/style-system.ts - 共享知识库管理
-// 架构复制自 0.AI工作区：
-//   温度分层 (HOT/WARM/COLD) — 活跃度决定注入策略
-//   双格式 (compact + full) — _shared/ 索引 + 详情文件
-//   条件反射: 学→记 — processCorrectionSignal 即学即写
-//   检索补全 (L1-L3) — readProfile 逐级 fallback
-//   文件锁 — writeLock 防并发写冲突
+// src/tools/style-system.ts — PROFILE + MEMORY 管理层
+// PROFILE: profile.json (voiceprint 产出 + AI 增量学习)
+// MEMORY:  memory.json (运行时 insight/fact/feedback)
+// 旧格式: style-dna.json + kb.json → 首次读时自动迁移
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { StyleProfile, KBEntry, CorrectionSignal, AgentRole } from '../types.js';
+import type { Profile, KBEntry, CorrectionSignal, AgentRole, PatternEntry } from '../types.js';
 
 export type Temperature = 'hot' | 'warm' | 'cold';
 
-export interface TunedProfile extends StyleProfile {
+export interface TunedProfile extends Profile {
   temperatures?: {
     corePrinciples: 'hot';
     forbiddenPatterns: 'warm';
@@ -23,7 +20,6 @@ export interface TunedProfile extends StyleProfile {
 }
 
 // ——— 文件锁 ———
-// advisory lock: 写前建 .lock，写后删除。超时自动放弃。
 const LOCK_RETRY_MS = 100;
 const LOCK_TIMEOUT_MS = 5000;
 
@@ -38,7 +34,6 @@ async function withLock<T>(dir: string, label: string, fn: () => Promise<T>): Pr
       break;
     } catch (err: any) {
       if (err.code !== 'EEXIST') throw err;
-      // 检查是否僵死锁
       try {
         const stale = await fs.readFile(lockFile, 'utf-8');
         const pid = parseInt(stale.split('\n')[0], 10);
@@ -65,11 +60,16 @@ async function withLock<T>(dir: string, label: string, fn: () => Promise<T>): Pr
   }
 }
 
+const PROFILE_FILE = 'profile.json';
+const MEMORY_FILE = 'memory.json';
+const LEGACY_STYLE_FILE = 'style-dna.json';
+const LEGACY_KB_FILE = 'kb.json';
+
 export class StyleSystem {
   private sharedDir: string;
 
   constructor(workspaceRoot: string, userId: string) {
-    this.sharedDir = path.join(workspaceRoot, '_shared', userId);
+    this.sharedDir = path.join(workspaceRoot, '_profiles', userId);
   }
 
   async ensureDirs(): Promise<void> {
@@ -84,74 +84,113 @@ export class StyleSystem {
     }
   }
 
-  // ---- HOT: 核心原则（始终注入 prompt） ----
+  // ========== 迁移 ==========
 
-  async readProfile(): Promise<StyleProfile | null> {
-    // L1: 精确路径
-    // L2: 读 style-dna.json
-    // L3: 返回 null
+  async migrateLegacyKB(): Promise<number> {
+    let count = 0;
     try {
-      const p = path.join(this.sharedDir, 'style-dna.json');
-      const raw = await fs.readFile(p, 'utf-8');
-      return JSON.parse(raw);
+      const raw = await fs.readFile(path.join(this.sharedDir, LEGACY_KB_FILE), 'utf-8');
+      const entries: KBEntry[] = JSON.parse(raw);
+      const nonPersona = entries.filter(e => e.category !== 'persona');
+      if (nonPersona.length === 0) return 0;
+      // 直接从 memory.json 读（跳过 readKB 的 kb.json fallback，避免自引）
+      let existing: KBEntry[] = [];
+      try {
+        const memRaw = await fs.readFile(path.join(this.sharedDir, MEMORY_FILE), 'utf-8');
+        existing = JSON.parse(memRaw);
+      } catch {}
+      const existingSet = new Set(existing.map(e => e.content));
+      const toAdd = nonPersona.filter(e => !existingSet.has(e.content));
+      if (toAdd.length === 0) return 0;
+      // 直接写 memory.json（绕过 appendKB 避免 legacy 自引）
+      const merged = [...existing, ...toAdd];
+      await this.ensureDirs();
+      await withLock(this.sharedDir, 'migrateLegacyKB', async () => {
+        await fs.writeFile(path.join(this.sharedDir, MEMORY_FILE), JSON.stringify(merged, null, 2), 'utf-8');
+      });
+      count = toAdd.length;
+      // 写回 kb.json 仅保留 persona 条目（readProfile 迁移仍会用）
+      const persona = entries.filter(e => e.category === 'persona');
+      await fs.writeFile(path.join(this.sharedDir, LEGACY_KB_FILE), JSON.stringify(persona, null, 2), 'utf-8');
+    } catch {
+      return 0;
+    }
+    return count;
+  }
+
+  private async migrateFromLegacy(): Promise<Profile | null> {
+    const legacyStylePath = path.join(this.sharedDir, LEGACY_STYLE_FILE);
+    let legacy: any;
+    try {
+      const raw = await fs.readFile(legacyStylePath, 'utf-8');
+      legacy = JSON.parse(raw);
     } catch {
       return null;
     }
+
+    const dna = legacy.dna || {};
+    const profile: Profile = {
+      userId: legacy.userId || '',
+      version: legacy.version || 1,
+      voiceprintStatus: 'done',
+      corePrinciples: [...(dna.corePrinciples || [])],
+      syntaxPatterns: { ...(dna.syntaxPatterns || {}) },
+      vocabulary: {
+        highFreq: [...((dna.vocabulary as any)?.highFreq || [])],
+        forbidden: [...((dna.vocabulary as any)?.forbidden || [])],
+        techTerms: [...((dna.vocabulary as any)?.techTerms || [])],
+      },
+      forbiddenPatterns: [...(dna.forbiddenPatterns || [])],
+      learnedPatterns: [],
+      lastUpdated: legacy.lastUpdated || '',
+    };
+
+    // Merge persona KB entries from legacy kb.json
+    try {
+      const kbRaw = await fs.readFile(path.join(this.sharedDir, LEGACY_KB_FILE), 'utf-8');
+      const entries: KBEntry[] = JSON.parse(kbRaw);
+      for (const e of entries) {
+        if (e.category === 'persona' && e.source !== 'voiceprint') {
+          profile.learnedPatterns.push({
+            pattern: e.content,
+            source: e.source,
+            timestamp: e.timestamp,
+            confirmed: e.confidence === 'high',
+          });
+        }
+      }
+    } catch {}
+
+    await this.writeProfile(profile);
+    return profile;
   }
 
-  async writeProfile(profile: StyleProfile): Promise<void> {
+  // ========== PROFILE ==========
+
+  async readProfile(): Promise<Profile | null> {
+    try {
+      const p = path.join(this.sharedDir, PROFILE_FILE);
+      const raw = await fs.readFile(p, 'utf-8');
+      return JSON.parse(raw);
+    } catch {}
+
+    // Legacy: migrate from style-dna.json
+    return this.migrateFromLegacy();
+  }
+
+  async writeProfile(profile: Profile): Promise<void> {
     await this.ensureDirs();
     await withLock(this.sharedDir, 'writeProfile', async () => {
-      const p = path.join(this.sharedDir, 'style-dna.json');
+      const p = path.join(this.sharedDir, PROFILE_FILE);
       await fs.writeFile(p, JSON.stringify(profile, null, 2), 'utf-8');
     });
   }
 
-  // ---- Voiceprint 状态机 ----
-
-  private statePath(): string {
-    return path.join(this.sharedDir, 'voiceprint-state.json');
-  }
-
-  async readVoiceprintState(): Promise<import('../types.js').VoiceprintState | null> {
-    try {
-      const raw = await fs.readFile(this.statePath(), 'utf-8');
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  async writeVoiceprintState(state: import('../types.js').VoiceprintState): Promise<void> {
-    await this.ensureDirs();
-    await withLock(this.sharedDir, 'voiceprintState', async () => {
-      await fs.writeFile(this.statePath(), JSON.stringify(state, null, 2), 'utf-8');
-    });
-  }
-
-  async resetVoiceprintState(): Promise<void> {
-    try { await fs.unlink(this.statePath()); } catch {}
-  }
-
-  // ---- WARM: 结构化知识条目（按需读取） ----
+  // ========== MEMORY ==========
 
   async readKB(temperature?: Temperature): Promise<KBEntry[]> {
-    // L1.5: 先读 .ai.md 伴侣文件（紧凑版）
-    const aiPath = path.join(this.sharedDir, 'kb.ai.md');
     try {
-      // kb.ai.md 是 kb.json 的 AI 可扫描摘要，由外部脚本维护
-      await fs.access(aiPath);
-      // 如果 .ai.md 存在且请求 warm，返回紧凑版
-      if (temperature === 'warm') {
-        const raw = await fs.readFile(aiPath, 'utf-8');
-        return [{ userId: '', category: 'insight', content: raw, source: 'system', timestamp: '', confidence: 'high' }];
-      }
-    } catch {
-      // L2: 无 .ai.md 文件，读完整 kb.json
-    }
-
-    try {
-      const p = path.join(this.sharedDir, 'kb.json');
+      const p = path.join(this.sharedDir, MEMORY_FILE);
       const raw = await fs.readFile(p, 'utf-8');
       const entries: KBEntry[] = JSON.parse(raw);
       if (temperature === 'hot') {
@@ -159,21 +198,35 @@ export class StyleSystem {
       }
       return entries;
     } catch {
-      // L3: 都找不到，返回空
-      return [];
+      // Legacy: read from kb.json
+      try {
+        const raw = await fs.readFile(path.join(this.sharedDir, LEGACY_KB_FILE), 'utf-8');
+        const entries: KBEntry[] = JSON.parse(raw);
+        if (temperature === 'hot') {
+          return entries.filter(e => e.confidence === 'high');
+        }
+        return entries;
+      } catch {
+        return [];
+      }
     }
   }
 
   async appendKB(entry: KBEntry): Promise<void> {
-    // 条件反射: 学→记 — 不等待"请记录下来"的指令
     await this.ensureDirs();
-    const p = path.join(this.sharedDir, 'kb.json');
+    const p = path.join(this.sharedDir, MEMORY_FILE);
     await withLock(this.sharedDir, 'appendKB', async () => {
       let existing: KBEntry[] = [];
       try {
         const raw = await fs.readFile(p, 'utf-8');
         existing = JSON.parse(raw);
-      } catch {}
+      } catch {
+        // Try legacy kb.json
+        try {
+          const raw = await fs.readFile(path.join(this.sharedDir, LEGACY_KB_FILE), 'utf-8');
+          existing = JSON.parse(raw);
+        } catch {}
+      }
       existing.push(entry);
       await fs.writeFile(p, JSON.stringify(existing, null, 2), 'utf-8');
     });
@@ -184,7 +237,7 @@ export class StyleSystem {
     );
   }
 
-  // ---- WARM: 用户画像 ----
+  // ========== 用户画像 ==========
 
   async readPersona(): Promise<string | null> {
     try {
@@ -203,7 +256,7 @@ export class StyleSystem {
     });
   }
 
-  // ---- WARM: 洞察日志 ----
+  // ========== 洞察日志 ==========
 
   async readInsights(): Promise<string | null> {
     try {
@@ -229,32 +282,55 @@ export class StyleSystem {
     });
   }
 
-  // ---- HOT/WARM 组合注入查询 ----
+  // ========== Voiceprint 状态机 ==========
+
+  private statePath(): string {
+    return path.join(this.sharedDir, 'voiceprint-state.json');
+  }
+
+  async readVoiceprintState(): Promise<import('../types.js').VoiceprintState | null> {
+    try {
+      const raw = await fs.readFile(this.statePath(), 'utf-8');
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  async writeVoiceprintState(state: import('../types.js').VoiceprintState): Promise<void> {
+    await this.ensureDirs();
+    await withLock(this.sharedDir, 'voiceprintState', async () => {
+      await fs.writeFile(this.statePath(), JSON.stringify(state, null, 2), 'utf-8');
+    });
+  }
+
+  async resetVoiceprintState(): Promise<void> {
+    try { await fs.unlink(this.statePath()); } catch {}
+  }
+
+  // ========== 组合查询 ==========
 
   async buildInjectionContext(temperature: Temperature): Promise<{
-    styleDNA: StyleProfile | null;
+    profile: Profile | null;
     topKB: KBEntry[];
     persona: string | null;
   }> {
-    const styleDNA = await this.readProfile();
+    const p = await this.readProfile();
     const topKB = await this.readKB(temperature);
     const persona = await this.readPersona();
-    return { styleDNA, topKB, persona };
+    return { profile: p, topKB, persona };
   }
 
-  // ---- 纠正信号处理（条件反射: 学→记） ----
+  // ========== 纠正信号 ==========
 
   async processCorrectionSignal(signal: CorrectionSignal): Promise<boolean> {
     let changed = false;
     const profile = await this.readProfile();
     if (!profile) return false;
 
-    const dna = profile.dna;
-
-    // 学→记：发现即写入，不等确认
     if (signal.type === 'forbidden') {
-      if (!dna.forbiddenPatterns.includes(signal.quote)) {
-        dna.forbiddenPatterns.push(signal.quote);
+      if (!profile.forbiddenPatterns.includes(signal.quote)) {
+        profile.forbiddenPatterns.push(signal.quote);
         profile.version += 1;
         profile.lastUpdated = new Date().toISOString();
         await this.writeProfile(profile);
@@ -263,8 +339,8 @@ export class StyleSystem {
     }
 
     if (signal.type === 'preference') {
-      if (!dna.vocabulary.highFreq.includes(signal.quote)) {
-        dna.vocabulary.highFreq.push(signal.quote);
+      if (!profile.vocabulary.highFreq.includes(signal.quote)) {
+        profile.vocabulary.highFreq.push(signal.quote);
         profile.version += 1;
         profile.lastUpdated = new Date().toISOString();
         await this.writeProfile(profile);
@@ -286,33 +362,25 @@ export class StyleSystem {
   }
 }
 
-/**
- * style_read_profile — 读取用户风格 DNA（L1: 精确路径）
- */
+// ========== 导出工具函数 ==========
+
 export async function styleReadProfile(
   workspaceRoot: string,
   userId: string,
-): Promise<StyleProfile | null> {
+): Promise<Profile | null> {
   const system = new StyleSystem(workspaceRoot, userId);
   return await system.readProfile();
 }
 
-/**
- * style_write_profile — 写入用户风格 DNA
- */
 export async function styleWriteProfile(
   workspaceRoot: string,
   userId: string,
-  profile: StyleProfile,
+  profile: Profile,
 ): Promise<void> {
   const system = new StyleSystem(workspaceRoot, userId);
   await system.writeProfile(profile);
 }
 
-/**
- * style_extract_signal — 条件反射: 学→记
- * 由 pipeline-continue 拦截钩子自动调用
- */
 export async function styleExtractSignal(
   workspaceRoot: string,
   userId: string,
@@ -322,9 +390,6 @@ export async function styleExtractSignal(
   return await system.processCorrectionSignal(signal);
 }
 
-/**
- * kb_write — 写入一条知识库条目
- */
 export async function kbWrite(
   workspaceRoot: string,
   userId: string,
@@ -334,9 +399,6 @@ export async function kbWrite(
   await system.appendKB(entry);
 }
 
-/**
- * kb_read — 读取知识库
- */
 export async function kbRead(
   workspaceRoot: string,
   userId: string,
@@ -350,33 +412,24 @@ export async function kbRead(
   return entries;
 }
 
-/**
- * style_get_context — content-writer 专用：拉取完整风格上下文
- * 返回 HOT（核心原则）+ WARM（禁止模式/词汇/句法）+ COLD（persona + insights）
- */
 export async function styleGetContext(
   workspaceRoot: string,
   userId: string,
 ): Promise<{
-  styleDNA: StyleProfile | null;
+  profile: Profile | null;
   persona: string | null;
   insights: string | null;
   recentKB: KBEntry[];
 }> {
   const system = new StyleSystem(workspaceRoot, userId);
-  const styleDNA = await system.readProfile();
+  const p = await system.readProfile();
   const persona = await system.readPersona();
   const insights = await system.readInsights();
   const recentKB = await system.readKB('hot');
-  return { styleDNA, persona, insights, recentKB };
+  return { profile: p, persona, insights, recentKB };
 }
 
-/**
- * voiceprint_init — 冷启动：创建初始风格 DNA
- * 如果用户尚无 style-dna.json，创建一个空模板并返回引导提示。
- * 返回: { exists: boolean, prompt?: string, profile?: StyleProfile }
- */
-// ——— Voiceprint 步骤提示模板 ——— //
+// ========== Voiceprint 步骤 ==========
 
 const STEP_PROMPTS: Record<number, (state: import('../types.js').VoiceprintState) => string> = {
   0: () => [
@@ -472,21 +525,26 @@ export async function voiceprintInit(
   exists: boolean;
   state: import('../types.js').VoiceprintState | null;
   prompt?: string;
-  profile?: StyleProfile;
+  profile?: Profile;
 }> {
   const system = new StyleSystem(workspaceRoot, userId);
   const profile = await system.readProfile();
   const state = await system.readVoiceprintState();
 
   if (state && state.step >= 99) {
-    // 已完成
     return { exists: true, state, profile: profile || undefined };
   }
 
   if (!profile) {
-    const defaultProfile: StyleProfile = {
-      userId, version: 1, lastUpdated: new Date().toISOString(),
-      dna: { corePrinciples: [], syntaxPatterns: {}, vocabulary: { highFreq: [], forbidden: [], techTerms: [] }, forbiddenPatterns: [], growthDirection: '' },
+    const defaultProfile: Profile = {
+      userId, version: 1,
+      voiceprintStatus: 'init',
+      corePrinciples: [],
+      syntaxPatterns: {},
+      vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
+      forbiddenPatterns: [],
+      learnedPatterns: [],
+      lastUpdated: new Date().toISOString(),
     };
     await system.writeProfile(defaultProfile);
   }
@@ -504,17 +562,6 @@ export async function voiceprintInit(
   return { exists: !!profile, state: currentState, prompt: currentPrompt };
 }
 
-/**
- * voiceprint_proceed — 推进 voiceprint 步骤并返回下一步提示
- *
- * 由 orchestrator 在每次用户回复后调用。处理步骤 1-6（样本收集）的自动推进：
- *   - step 1-4: 存储用户写的样本，step +1
- *   - step 5:   orchestrator 判断样本是否足够，传 done=true 则跳到 7
- *   - step 当 path='B': 用户贴文章，orchestrator 判断够了传 done=true
- */
-/**
- * voiceprint_reset — 重置 voiceprint 状态，允许用户重新做风格快照
- */
 export async function voiceprintReset(
   workspaceRoot: string,
   userId: string,
@@ -528,9 +575,9 @@ export async function voiceprintProceed(
   workspaceRoot: string,
   userId: string,
   params: {
-    sample?: { text: string; label: string };  // 步骤 1-5 时传入
+    sample?: { text: string; label: string };
     path?: 'A' | 'B';
-    done?: boolean;   // orchestrator 判断样本够了，跳到步骤 7
+    done?: boolean;
   },
 ): Promise<{
   state: import('../types.js').VoiceprintState;
@@ -540,25 +587,20 @@ export async function voiceprintProceed(
   const state = await system.readVoiceprintState();
   if (!state) throw new Error('请先调用 voiceprint_init 初始化');
 
-  // 设置路径（首次）
   if (params.path) state.path = params.path;
 
-  // 存储样本
   if (params.sample) {
     state.samples.push(params.sample);
   }
 
-  // 路径 A: 步骤 1-4 自动推进
   if (state.path === 'A' && state.step >= 1 && state.step <= 4 && params.sample) {
     state.step += 1;
   }
 
-  // 路径 B: 不会自动推进步骤，orchestrator 判断够了传 done
   if (state.path === 'B' && state.step <= 5) {
-    state.step = 5;  // 固定在"收集够了吗"步骤
+    state.step = 5;
   }
 
-  // orchestrator 说够了 → 跳到校准
   if (params.done || state.step === 5) {
     state.step = 7;
   }
@@ -571,15 +613,10 @@ export async function voiceprintProceed(
   return { state, prompt };
 }
 
-/**
- * voiceprint_analyze — 接受子 agent 的分析结论，写入 style-dna.json
- *
- * 工作流（由 orchestrator 按 voiceprint-guide.md 执行）:
- *   1. 收集用户写作样本（路径 A: 5 段引导式 / 路径 B: 贴现有文章）
- *   2. orchestrator 调用 route_message 发给 content-writer 分析
- *   3. content-writer 返回分析结论（含 corePrinciples / forbiddenPatterns / vocabulary / syntaxPatterns / growthDirection）
- *   4. orchestrator 调 voiceprint_analyze 写入
- */
+function uniq<T>(arr: T[]): T[] {
+  return [...new Set(arr)];
+}
+
 export async function voiceprintAnalyze(
   workspaceRoot: string,
   userId: string,
@@ -594,10 +631,9 @@ export async function voiceprintAnalyze(
       growthDirection?: string;
     };
   },
-): Promise<{ profile: StyleProfile; state: import('../types.js').VoiceprintState; prompt: string }> {
+): Promise<{ profile: Profile; state: import('../types.js').VoiceprintState; prompt: string }> {
   const system = new StyleSystem(workspaceRoot, userId);
 
-  // 校验状态
   const state = await system.readVoiceprintState();
   if (!state) throw new Error('尚无 voiceprint 状态，请先调用 voiceprint_init');
   if (state.step !== 9) {
@@ -605,7 +641,7 @@ export async function voiceprintAnalyze(
   }
 
   const existing = await system.readProfile();
-  if (!existing) throw new Error('尚无 style-dna.json');
+  if (!existing) throw new Error('尚无 profile.json');
 
   // 写入样本到 KB
   for (const sample of params.samples) {
@@ -617,12 +653,11 @@ export async function voiceprintAnalyze(
   }
 
   // 写入分析结论
-  existing.dna.corePrinciples = uniq([...existing.dna.corePrinciples, ...params.analysis.corePrinciples]);
-  existing.dna.forbiddenPatterns = uniq([...existing.dna.forbiddenPatterns, ...params.analysis.forbiddenPatterns]);
-  existing.dna.syntaxPatterns = { ...existing.dna.syntaxPatterns, ...params.analysis.syntaxPatterns };
-  if (params.analysis.growthDirection) existing.dna.growthDirection = params.analysis.growthDirection;
+  existing.corePrinciples = uniq([...existing.corePrinciples, ...params.analysis.corePrinciples]);
+  existing.forbiddenPatterns = uniq([...existing.forbiddenPatterns, ...params.analysis.forbiddenPatterns]);
+  existing.syntaxPatterns = { ...existing.syntaxPatterns, ...params.analysis.syntaxPatterns };
 
-  const v = existing.dna.vocabulary;
+  const v = existing.vocabulary;
   v.highFreq = uniq([...v.highFreq, ...params.analysis.highFreqWords]);
   if (params.analysis.techTerms) v.techTerms = uniq([...v.techTerms, ...params.analysis.techTerms]);
   const suggestedForbidden = params.analysis.forbiddenPatterns.filter(p => !v.forbidden.includes(p));
@@ -630,9 +665,9 @@ export async function voiceprintAnalyze(
 
   existing.version += 1;
   existing.lastUpdated = new Date().toISOString();
+  existing.voiceprintStatus = 'analyzing';
   await system.writeProfile(existing);
 
-  // 存储分析到 state，推进到步骤 10
   state.analysis = {
     corePrinciples: params.analysis.corePrinciples,
     forbiddenPatterns: params.analysis.forbiddenPatterns,
@@ -655,17 +690,6 @@ export async function voiceprintAnalyze(
   return { profile: existing, state, prompt };
 }
 
-function uniq<T>(arr: T[]): T[] {
-  return [...new Set(arr)];
-}
-
-/**
- * voiceprint_calibrate — 偏好校准：写入用户选择的偏好选项
- *
- * 在 Voiceprint 步骤 7-8 中调用：
- *   步骤 7: 句长 / 标点 / emoji 偏好（多选题）
- *   步骤 8: 禁用语选择（多选题）
- */
 export async function voiceprintCalibrate(
   workspaceRoot: string,
   userId: string,
@@ -677,12 +701,11 @@ export async function voiceprintCalibrate(
     tone?: 'casual' | 'formal' | 'balanced';
     selectedForbiddenPhrases?: string[];
   },
-): Promise<{ profile: StyleProfile; state: import('../types.js').VoiceprintState; prompt: string }> {
+): Promise<{ profile: Profile; state: import('../types.js').VoiceprintState; prompt: string }> {
   const system = new StyleSystem(workspaceRoot, userId);
   const existing = await system.readProfile();
-  if (!existing) throw new Error('尚无 style-dna.json，请先调用 voiceprint_init');
+  if (!existing) throw new Error('尚无 profile.json，请先调用 voiceprint_init');
 
-  // 校验状态
   const state = await system.readVoiceprintState();
   if (!state) throw new Error('尚无 voiceprint 状态，请先调用 voiceprint_init');
   if (state.step !== 7 && state.step !== 8) {
@@ -691,28 +714,28 @@ export async function voiceprintCalibrate(
 
   if (preferences.sentenceLength) {
     const lengthMap = { short: 15, medium: 30, long: 50 };
-    existing.dna.syntaxPatterns.preferedSentenceLength = lengthMap[preferences.sentenceLength];
+    existing.syntaxPatterns.preferedSentenceLength = lengthMap[preferences.sentenceLength];
   }
-  if (preferences.useEmoji !== undefined) existing.dna.syntaxPatterns.usesEmoji = preferences.useEmoji;
-  if (preferences.useExclamation !== undefined) existing.dna.syntaxPatterns.usesExclamation = preferences.useExclamation;
-  if (preferences.useDash !== undefined) existing.dna.syntaxPatterns.usesDash = preferences.useDash;
-  if (preferences.tone) existing.dna.syntaxPatterns.tone = preferences.tone;
+  if (preferences.useEmoji !== undefined) existing.syntaxPatterns.usesEmoji = preferences.useEmoji;
+  if (preferences.useExclamation !== undefined) existing.syntaxPatterns.usesExclamation = preferences.useExclamation;
+  if (preferences.useDash !== undefined) existing.syntaxPatterns.usesDash = preferences.useDash;
+  if (preferences.tone) existing.syntaxPatterns.tone = preferences.tone;
 
   if (preferences.selectedForbiddenPhrases?.length) {
-    const v = existing.dna.vocabulary;
+    const v = existing.vocabulary;
     for (const phrase of preferences.selectedForbiddenPhrases) {
       if (!v.forbidden.includes(phrase)) v.forbidden.push(phrase);
-      if (!existing.dna.forbiddenPatterns.includes(phrase)) existing.dna.forbiddenPatterns.push(phrase);
+      if (!existing.forbiddenPatterns.includes(phrase)) existing.forbiddenPatterns.push(phrase);
     }
   }
 
   existing.version += 1;
   existing.lastUpdated = new Date().toISOString();
+  existing.voiceprintStatus = 'calibrating';
   await system.writeProfile(existing);
 
-  // 存储偏好到 state
   state.preferences = { ...state.preferences, ...preferences };
-  state.step = 9;  // 校准完成，跳转到分析
+  state.step = 9;
   state.updatedAt = new Date().toISOString();
   await system.writeVoiceprintState(state);
 
@@ -723,22 +746,13 @@ export async function voiceprintCalibrate(
   return { profile: existing, state, prompt };
 }
 
-/**
- * voiceprint_confirm — 展示当前风格 DNA → 确认 → 写死 persona.md
- *
- * 在 Voiceprint 步骤 10 中调用：
- *   1. 读取 style-dna.json 中的完整分析结论
- *   2. 写入 profile/persona.md（human-readable 版本）
- *   3. 写入 KB 一条 { category: 'persona', confidence: 'high' } 表示 Voiceprint 已完成
- */
 export async function voiceprintConfirm(
   workspaceRoot: string,
   userId: string,
   params?: { corrections?: string[] },
-): Promise<{ summary: string; profile: StyleProfile; prompt: string }> {
+): Promise<{ summary: string; profile: Profile; prompt: string }> {
   const system = new StyleSystem(workspaceRoot, userId);
 
-  // 校验状态
   const state = await system.readVoiceprintState();
   if (!state) throw new Error('尚无 voiceprint 状态，请先调用 voiceprint_init');
   if (state.step !== 10) {
@@ -747,8 +761,6 @@ export async function voiceprintConfirm(
 
   const profile = await system.readProfile();
   if (!profile) throw new Error('尚无以确认的风格 DNA');
-
-  const dna = profile.dna;
 
   // 如果用户有修正，记录到 KB 但不写死
   if (params?.corrections?.length) {
@@ -771,14 +783,14 @@ export async function voiceprintConfirm(
     `# ${userId} 的风格 DNA`,
     '',
     '## 核心原则',
-    ...(dna.corePrinciples.length ? dna.corePrinciples.map(p => `- ${p}`) : ['- （无）']),
+    ...(profile.corePrinciples.length ? profile.corePrinciples.map(p => `- ${p}`) : ['- （无）']),
     '',
     '## 禁用模式',
-    ...(dna.forbiddenPatterns.length ? dna.forbiddenPatterns.map(p => `- ${p}`) : ['- （无）']),
+    ...(profile.forbiddenPatterns.length ? profile.forbiddenPatterns.map(p => `- ${p}`) : ['- （无）']),
     '',
     '## 句法偏好',
     ...(() => {
-      const sp = dna.syntaxPatterns;
+      const sp = profile.syntaxPatterns;
       const items: string[] = [];
       if (sp.preferedSentenceLength) items.push(`- 句长: ${sp.preferedSentenceLength} 字符`);
       if (sp.usesEmoji !== undefined) items.push(`- Emoji: ${sp.usesEmoji ? '使用' : '不使用'}`);
@@ -789,32 +801,26 @@ export async function voiceprintConfirm(
     })(),
     '',
     '## 高频词汇',
-    ...(dna.vocabulary.highFreq.length ? dna.vocabulary.highFreq.map(w => `- ${w}`) : ['- （无）']),
+    ...(profile.vocabulary.highFreq.length ? profile.vocabulary.highFreq.map(w => `- ${w}`) : ['- （无）']),
     '',
     '## 禁用词汇',
-    ...(dna.vocabulary.forbidden.length ? dna.vocabulary.forbidden.map(w => `- ${w}`) : ['- （无）']),
+    ...(profile.vocabulary.forbidden.length ? profile.vocabulary.forbidden.map(w => `- ${w}`) : ['- （无）']),
     '',
     '## 领域术语',
-    ...(dna.vocabulary.techTerms.length ? dna.vocabulary.techTerms.map(t => `- ${t}`) : ['- （无）']),
+    ...(profile.vocabulary.techTerms.length ? profile.vocabulary.techTerms.map(t => `- ${t}`) : ['- （无）']),
     '',
-    '## 成长方向',
-    dna.growthDirection || '（无）',
+    ...(profile.learnedPatterns.length ? [
+      '## 学习中的模式（待确认）',
+      ...profile.learnedPatterns.map(p => `- ${p.pattern} (${p.source})`),
+      '',
+    ] : []),
     '',
     `> 由 Voiceprint 流程于 ${new Date().toISOString()} 生成`,
   ];
 
   const summary = lines.join('\n');
 
-  // 写入 persona.md
   await system.writePersona(summary);
-
-  // 写入 KB
-  const entry: import('../types.js').KBEntry = {
-    userId, category: 'persona',
-    content: `Voiceprint 已完成。核心原则: ${dna.corePrinciples.join('; ').substring(0, 200)}`,
-    source: 'voiceprint', timestamp: new Date().toISOString(), confidence: 'high',
-  };
-  await system.appendKB(entry);
 
   // 标记状态完成
   state.step = 99;
@@ -824,14 +830,12 @@ export async function voiceprintConfirm(
 
   profile.version += 1;
   profile.lastUpdated = new Date().toISOString();
+  profile.voiceprintStatus = 'done';
   await system.writeProfile(profile);
 
-  await system.appendInsight(`[Voiceprint] 已完成并确认。${dna.corePrinciples.length} 条原则, ${dna.forbiddenPatterns.length} 个禁用模式`, 'voiceprint');
+  await system.appendInsight(`[Voiceprint] 已完成并确认。${profile.corePrinciples.length} 条原则, ${profile.forbiddenPatterns.length} 个禁用模式`, 'voiceprint');
 
   const prompt = STEP_PROMPTS[99]?.(state) || '风格快照已锁定。';
 
   return { summary, profile, prompt };
 }
-
-// 所有 voiceprint / style 工具的 OpenClaw 注册在 index.ts 中完成
-// styleToolsExport 已弃用，将所有注册移到 index.ts 统一管理

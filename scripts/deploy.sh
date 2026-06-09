@@ -83,7 +83,7 @@ PLUGIN_WS="${PLUGIN_DIR}/workspace"
 mkdir -p "${PLUGIN_WS}/templates"
 mkdir -p "${PLUGIN_WS}/projects"
 mkdir -p "${PLUGIN_WS}/agent-guides"
-mkdir -p "${PLUGIN_WS}/_shared"
+mkdir -p "${PLUGIN_WS}/_profiles"
 echo "✓ 插件工作区已初始化: ${PLUGIN_WS}"
 
 # ---------- 步骤 3: 部署 Orchestrator Agent ----------

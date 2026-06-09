@@ -37,7 +37,7 @@ pipeline_read(topic_brief, research_notes, article_idea, target_audience)
 | 风格 DNA | `style_read_profile` | 写前必调，确认当前风格规则 |
 | 完整风格上下文 | `style_get_context` | 拉取 DNA + persona + insights |
 | KB 快照 | `snapshot_read` | 了解冻结的系统知识状态 |
-| 用户画像 | `kb_read('user_profile')` | 了解用户背景、知识水平 |
+| 用户画像 | `memory_read('user_profile')`（旧名 kb_read）| 了解用户背景、知识水平 |
 | 历史选题 | `session_search(slotName='topic_brief')` | 了解同类选题的历史处理方式 |
 
 ### 破题清单
@@ -265,7 +265,7 @@ pipeline_read(topic_brief, research_notes, article_idea, target_audience)
 | "这里改一下" / "第二段重写" | 直接执行修改 | 否（单次调整） |
 | "我不喜欢这种语气" | 执行 + `style_extract_signal("tone")` | 是 |
 | "以后别用这种开头" | 执行 + `style_extract_signal("avoid_opening")` | 是 |
-| "缩短一点" | 执行 + `kb_write("word_count_preference")` | 是 |
+| "缩短一点" | 执行 + `memory_write("word_count_preference")` | 是 |
 | "这个数据有问题" | `pipeline_add_remark` 通知 topic-researcher 重调研 | 否 |
 | "写得太 AI 了" | 执行 + `style_extract_signal("anti_ai")` | 是 |
 | "过了" / "可以了" | advance 到下一 stage | — |

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CorrectionSignal, VoiceprintState, StyleProfile } from '../src/types.js';
+import type { CorrectionSignal, VoiceprintState, Profile } from '../src/types.js';
 
 const _norm = (p: string) => p.replace(/\\/g, '/');
 
@@ -54,19 +54,18 @@ import { StyleSystem, styleReadProfile, styleWriteProfile, kbWrite, kbRead, styl
 const WR = 'C:/workspace';
 const UID = 'user-1';
 
-function sharedDir() { return `${WR}/_shared/${UID}`; }
+function sharedDir() { return `${WR}/_profiles/${UID}`; }
 
-function makeProfile(overrides?: Partial<StyleProfile>): StyleProfile {
+function makeProfile(overrides?: Partial<Profile>): Profile {
   return {
     userId: UID,
     version: 1,
-    dna: {
-      corePrinciples: [],
-      syntaxPatterns: {},
-      vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
-      forbiddenPatterns: [],
-      growthDirection: '',
-    },
+    voiceprintStatus: 'init',
+    corePrinciples: [],
+    syntaxPatterns: {},
+    vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
+    forbiddenPatterns: [],
+    learnedPatterns: [],
     lastUpdated: '2025-01-01T00:00:00.000Z',
     ...overrides,
   };
@@ -93,7 +92,7 @@ describe('StyleSystem', () => {
   describe('readProfile / writeProfile', () => {
     it('文件存在时 readProfile 返回解析后的对象', async () => {
       const profile = makeProfile();
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(profile));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(profile));
       const sys = new StyleSystem(WR, UID);
       const result = await sys.readProfile();
       expect(result).toBeDefined();
@@ -115,11 +114,46 @@ describe('StyleSystem', () => {
     });
 
     it('写后读回一致', async () => {
-      const profile = makeProfile({ dna: { ...makeProfile().dna, corePrinciples: ['test'] } });
+      const profile = makeProfile({ corePrinciples: ['test'] });
       const sys = new StyleSystem(WR, UID);
       await sys.writeProfile(profile);
       const read = await sys.readProfile();
-      expect(read!.dna.corePrinciples).toEqual(['test']);
+      expect(read!.corePrinciples).toEqual(['test']);
+    });
+  });
+
+  describe('migrateLegacyKB', () => {
+    it('无 kb.json 返回 0', async () => {
+      const sys = new StyleSystem(WR, UID);
+      const count = await sys.migrateLegacyKB();
+      expect(count).toBe(0);
+    });
+
+    it('迁移非 persona 条目到 memory.json', async () => {
+      const legacy = [
+        { userId: UID, category: 'insight', content: '测试洞察', source: 'agent', timestamp: '', confidence: 'high' },
+        { userId: UID, category: 'fact', content: '测试事实', source: 'agent', timestamp: '', confidence: 'medium' },
+        { userId: UID, category: 'persona', content: '用户画像条目', source: 'voiceprint', timestamp: '', confidence: 'high' },
+      ];
+      setFile(`${sharedDir()}/kb.json`, JSON.stringify(legacy));
+      const sys = new StyleSystem(WR, UID);
+      const count = await sys.migrateLegacyKB();
+      expect(count).toBe(2);
+      const mem = await sys.readKB();
+      expect(mem.some(e => e.content === '测试洞察')).toBe(true);
+      expect(mem.some(e => e.content === '测试事实')).toBe(true);
+      expect(mem.some(e => e.content === '用户画像条目')).toBe(false);
+    });
+
+    it('已迁移过的返回 0（不重复写入）', async () => {
+      const legacy = [
+        { userId: UID, category: 'insight', content: '已存在', source: 'agent', timestamp: '', confidence: 'high' },
+      ];
+      setFile(`${sharedDir()}/kb.json`, JSON.stringify(legacy));
+      setFile(`${sharedDir()}/memory.json`, JSON.stringify(legacy));
+      const sys = new StyleSystem(WR, UID);
+      const count = await sys.migrateLegacyKB();
+      expect(count).toBe(0);
     });
   });
 
@@ -133,14 +167,14 @@ describe('StyleSystem', () => {
     });
 
     it('voiceprintInit 已完成时返回 exists=true', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 99, confirmed: true })));
       const result = await voiceprintInit(WR, UID);
       expect(result.exists).toBe(true);
     });
 
     it('voiceprintInit 从中间步骤恢复', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 3 })));
       const result = await voiceprintInit(WR, UID);
       expect(result.state!.step).toBe(3);
@@ -201,7 +235,7 @@ describe('StyleSystem', () => {
 
   describe('voiceprintCalibrate', () => {
     it('写入偏好并推进到 step 9', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 7 })));
       const result = await voiceprintCalibrate(WR, UID, {
         sentenceLength: 'short',
@@ -209,31 +243,31 @@ describe('StyleSystem', () => {
         tone: 'formal',
       });
       expect(result.state.step).toBe(9);
-      expect(result.profile.dna.syntaxPatterns.preferedSentenceLength).toBe(15);
-      expect(result.profile.dna.syntaxPatterns.usesEmoji).toBe(false);
-      expect(result.profile.dna.syntaxPatterns.tone).toBe('formal');
+      expect(result.profile.syntaxPatterns.preferedSentenceLength).toBe(15);
+      expect(result.profile.syntaxPatterns.usesEmoji).toBe(false);
+      expect(result.profile.syntaxPatterns.tone).toBe('formal');
     });
 
     it('step 不是 7 或 8 时报错', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 3 })));
       await expect(voiceprintCalibrate(WR, UID, {})).rejects.toThrow('还不能做校准');
     });
 
     it('selectedForbiddenPhrases 写入禁用列表', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 8 })));
       const result = await voiceprintCalibrate(WR, UID, {
         selectedForbiddenPhrases: ['此外', '值得注意的是'],
       });
-      expect(result.profile.dna.vocabulary.forbidden).toContain('此外');
-      expect(result.profile.dna.forbiddenPatterns).toContain('值得注意的是');
+      expect(result.profile.vocabulary.forbidden).toContain('此外');
+      expect(result.profile.forbiddenPatterns).toContain('值得注意的是');
     });
   });
 
   describe('voiceprintAnalyze', () => {
     it('写入分析结果并推进到 step 10', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 9 })));
       const result = await voiceprintAnalyze(WR, UID, {
         samples: [{ text: 'hello world', label: 'intro' }],
@@ -245,30 +279,30 @@ describe('StyleSystem', () => {
         },
       });
       expect(result.state.step).toBe(10);
-      expect(result.profile.dna.corePrinciples).toContain('简洁');
-      expect(result.profile.dna.vocabulary.forbidden).toContain('首先');
+      expect(result.profile.corePrinciples).toContain('简洁');
+      expect(result.profile.vocabulary.forbidden).toContain('首先');
       expect(result.prompt).toContain('风格快照已经锁定');
     });
 
     it('step 不是 9 时报错', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 5 })));
       await expect(voiceprintAnalyze(WR, UID, { samples: [], analysis: {} as any })).rejects.toThrow('还不能做分析');
     });
 
     it('无 profile 时报错', async () => {
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 9 })));
-      await expect(voiceprintAnalyze(WR, UID, { samples: [], analysis: {} as any })).rejects.toThrow('尚无 style-dna.json');
+      await expect(voiceprintAnalyze(WR, UID, { samples: [], analysis: {} as any })).rejects.toThrow('尚无 profile.json');
     });
   });
 
   describe('voiceprintConfirm', () => {
     it('确认后生成 persona 并标记 step=99', async () => {
-      const profile = makeProfile({ dna: { ...makeProfile().dna, corePrinciples: ['简洁'] } });
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(profile));
+      const profile = makeProfile({ corePrinciples: ['简洁'] });
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(profile));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 10 })));
       const result = await voiceprintConfirm(WR, UID);
-      expect(result.profile.dna.corePrinciples).toContain('简洁');
+      expect(result.profile.corePrinciples).toContain('简洁');
       const sys = new StyleSystem(WR, UID);
       const persona = await sys.readPersona();
       expect(persona).toBeDefined();
@@ -279,7 +313,7 @@ describe('StyleSystem', () => {
     });
 
     it('corrections 非空时不锁定', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 10 })));
       const result = await voiceprintConfirm(WR, UID, { corrections: ['太正式了'] });
       expect(result.summary).toContain('修正');
@@ -289,7 +323,7 @@ describe('StyleSystem', () => {
     });
 
     it('step 不是 10 时报错', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 5 })));
       await expect(voiceprintConfirm(WR, UID)).rejects.toThrow('还不能做确认');
     });
@@ -297,23 +331,23 @@ describe('StyleSystem', () => {
 
   describe('processCorrectionSignal', () => {
     it('forbidden 信号追加到 forbiddenPatterns', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       const sys = new StyleSystem(WR, UID);
       await sys.processCorrectionSignal({
         type: 'forbidden', quote: '不要用感叹号', agent: 'orchestrator', userId: UID,
       });
       const profile = await sys.readProfile();
-      expect(profile!.dna.forbiddenPatterns).toContain('不要用感叹号');
+      expect(profile!.forbiddenPatterns).toContain('不要用感叹号');
     });
 
     it('preference 信号追加到 highFreq', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       const sys = new StyleSystem(WR, UID);
       await sys.processCorrectionSignal({
         type: 'preference', quote: '多用短句', agent: 'orchestrator', userId: UID,
       });
       const profile = await sys.readProfile();
-      expect(profile!.dna.vocabulary.highFreq).toContain('多用短句');
+      expect(profile!.vocabulary.highFreq).toContain('多用短句');
     });
 
     it('无 profile 时返回 false', async () => {
@@ -325,7 +359,7 @@ describe('StyleSystem', () => {
     });
 
     it('praise 信号写入 KB', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       const sys = new StyleSystem(WR, UID);
       await sys.processCorrectionSignal({
         type: 'praise', quote: '很好', agent: 'orchestrator', userId: UID,
@@ -335,7 +369,7 @@ describe('StyleSystem', () => {
     });
 
     it('重复信号不重复写入', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       const sys = new StyleSystem(WR, UID);
       const signal: CorrectionSignal = {
         type: 'forbidden', quote: '不要用感叹号', agent: 'orchestrator', userId: UID,
@@ -343,7 +377,7 @@ describe('StyleSystem', () => {
       const first = await sys.processCorrectionSignal(signal);
       const second = await sys.processCorrectionSignal(signal);
       const profile = await sys.readProfile();
-      const matches = profile!.dna.forbiddenPatterns.filter(p => p === '不要用感叹号');
+      const matches = profile!.forbiddenPatterns.filter(p => p === '不要用感叹号');
       expect(matches).toHaveLength(1);
       expect(first).toBe(true);
       expect(second).toBe(false);
@@ -352,7 +386,7 @@ describe('StyleSystem', () => {
 
   describe('KB operations', () => {
     it('kbWrite 追加条目', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       await kbWrite(WR, UID, {
         userId: UID, category: 'insight', content: 'test entry', source: 'orchestrator', timestamp: '', confidence: 'high',
       });
@@ -362,7 +396,7 @@ describe('StyleSystem', () => {
     });
 
     it('kbRead 按 category 过滤', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       await kbWrite(WR, UID, { userId: UID, category: 'insight', content: 'i1', source: 'a', timestamp: '', confidence: 'high' });
       await kbWrite(WR, UID, { userId: UID, category: 'feedback', content: 'f1', source: 'a', timestamp: '', confidence: 'high' });
       const insights = await kbRead(WR, UID, 'insight');
@@ -378,12 +412,12 @@ describe('StyleSystem', () => {
 
   describe('styleGetContext', () => {
     it('返回三层上下文', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile({ dna: { ...makeProfile().dna, corePrinciples: ['简洁'] } })));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile({ corePrinciples: ['简洁'] })));
       setFile(`${sharedDir()}/profile/persona.md`, 'user persona');
       setFile(`${sharedDir()}/memory/insights.md`, '# insights');
       const ctx = await styleGetContext(WR, UID);
-      expect(ctx.styleDNA).toBeDefined();
-      expect(ctx.styleDNA!.dna.corePrinciples).toContain('简洁');
+      expect(ctx.profile).toBeDefined();
+      expect(ctx.profile!.corePrinciples).toContain('简洁');
       expect(ctx.persona).toBe('user persona');
       expect(ctx.insights).toContain('insights');
     });
@@ -391,7 +425,7 @@ describe('StyleSystem', () => {
 
   describe('styleExtractSignal', () => {
     it('调用 processCorrectionSignal 并返回结果', async () => {
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       const changed = await styleExtractSignal(WR, UID, {
         type: 'forbidden', quote: 'test', agent: 'orchestrator', userId: UID,
       });
@@ -425,10 +459,7 @@ describe('StyleSystem', () => {
 
   describe('uniq', () => {
     it('dedup 数组', async () => {
-      // uniq is used internally by voiceprintAnalyze
-      // It's also exported standalone - but it's just [...new Set(arr)]
-      // We'll test it indirectly through analyze
-      setFile(`${sharedDir()}/style-dna.json`, JSON.stringify(makeProfile()));
+      setFile(`${sharedDir()}/profile.json`, JSON.stringify(makeProfile()));
       setFile(`${sharedDir()}/voiceprint-state.json`, JSON.stringify(makeState({ step: 9 })));
       const result = await voiceprintAnalyze(WR, UID, {
         samples: [],
@@ -439,8 +470,8 @@ describe('StyleSystem', () => {
           syntaxPatterns: {},
         },
       });
-      expect(result.profile.dna.corePrinciples).toHaveLength(2);
-      expect(result.profile.dna.vocabulary.highFreq).toHaveLength(1);
+      expect(result.profile.corePrinciples).toHaveLength(2);
+      expect(result.profile.vocabulary.highFreq).toHaveLength(1);
     });
   });
 });

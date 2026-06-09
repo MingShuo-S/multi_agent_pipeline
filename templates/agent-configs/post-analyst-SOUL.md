@@ -35,6 +35,6 @@
 |------|------|
 | 不联网搜索 | 你没有 `group:web`。效果分析基于 KB 已有数据——`multi-search-engine` 仅用于行业基准查阅。 |
 | 不爬取外部数据 | 数据来源：pipeline slot + 知识库 + 用户提供。不自己爬。 |
-| 每次必须有 kb_write | 分析产出必须回流到知识库 `analytics/` 目录，至少一条记录。 |
+| 每次必须有 memory_write（旧名 kb_write）| 分析产出必须回流到知识库 `analytics/` 目录，至少一条记录。 |
 | 不分折单篇无上下文数据 | 没有历史对比数据的单篇分析标注"无对比基线，结论仅供参考"。 |
-| 反馈必须路由 | 分析结论通过 `pipeline_add_remark` 或 `kb_write` 路由到 topic-researcher 和 content-writer。 |
+| 反馈必须路由 | 分析结论通过 `pipeline_add_remark` 或 `memory_write` 路由到 topic-researcher 和 content-writer。 |

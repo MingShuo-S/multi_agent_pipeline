@@ -48,7 +48,7 @@
 
 ### 0b: 匹配 pending 记录
 
-用提取到的信息去匹配 `kb_read("analytics/pending/")` 中的待回采记录：
+用提取到的信息去匹配 `memory_read("analytics/pending/")`（旧名 kb_read）中的待回采记录：
 
 ```
 匹配优先级:
@@ -95,7 +95,7 @@
 分析完成后，删除或标记该 pending 记录：
 
 ```
-kb_write("analytics/pending/", {
+memory_write（旧名 kb_write）("analytics/pending/", {
   publish_id: "pub_20260608_001",
   status: "completed",
   completed_at: "2026-06-15T10:00:00Z"
@@ -112,7 +112,7 @@ kb_write("analytics/pending/", {
 |------|------|------|
 | 当前 content pipeline | `pipeline_read("final_output")` | 本次发布内容 + 元数据 |
 | 同类型历史记录 | `session_search(slotName="final_output", keyword="{选题关键词}")` | 对比分析 |
-| 同平台发布记录 | `kb_read("analytics/{platform}/history")` | 平台基线效果 |
+| 同平台发布记录 | `memory_read("analytics/{platform}/history")` | 平台基线效果 |
 | 风格 DNA | `style_read_profile` | "风格是否对效果有影响" |
 
 ### 数据格式标准化
@@ -150,7 +150,7 @@ kb_write("analytics/pending/", {
 | 打开率 | 阅读量 / 推送量（如有推送数据） | 高/中/低 |
 | 互动率 | (点赞+评论+分享) / 阅读量 | 高/中/低 |
 | 完读率 | 如有平台数据 | 高/中/低 |
-| 风格匹配 | 对比 style-dna.json | 分数 |
+| 风格匹配 | 对比 profile.json | 分数 |
 | 评论质量 | 人工/LLM 评估评论内容 | 积极/中性/消极/无评论 |
 
 ### 2b 对比评估
@@ -212,7 +212,7 @@ kb_write("analytics/pending/", {
 
 ### 4a 路由到 topic-researcher
 
-通过 `pipeline_add_remark` 或 `kb_write("analytics/feedback/topic-researcher")`：
+通过 `pipeline_add_remark` 或 `memory_write("analytics/feedback/topic-researcher")`：
 
 ```
 反馈给 topic-researcher：
@@ -240,7 +240,7 @@ kb_write("analytics/pending/", {
 ```json
 {
   "category": "analytics",
-  "path": "_shared/{userId}/analytics/{type}/",
+  "path": "_profiles/{userId}/analytics/{type}/",
   "entry": {
     "timestamp": "2026-06-08T10:00:00Z",
     "type": "pattern",  // pattern | report | feedback
@@ -275,7 +275,7 @@ kb_write("analytics/pending/", {
 | 分析中发现数据不一致 | 在 performance_insights 中标注"数据冲突"，不做硬结论 |
 | 回采匹配无结果 | 降级为纯凭用户提供数据分析，标注"无对应发布记录" |
 | 用户提供的数据明显不合理 | 标注"数据可疑"，询问用户是否需要核实 |
-| 回采时 pipeline 已无 `final_output` | 从 `kb_read("content/{platform}/")` 历史记录中还原 publish_id |
+| 回采时 pipeline 已无 `final_output` | 从 `memory_read("content/{platform}/")` 历史记录中还原 publish_id |
 
 ---
 
@@ -283,16 +283,16 @@ kb_write("analytics/pending/", {
 
 ```
 回采触发（管道外）:
-  kb_read("analytics/pending/") → 查待回采记录，匹配 publish_id
+  memory_read("analytics/pending/") → 查待回采记录，匹配 publish_id
   pipeline_read("final_output") → 读对应发布的 metadata
-  kb_write("analytics/pending/", {publish_id, status: "completed"}) → 清理 pending
+  memory_write("analytics/pending/", {publish_id, status: "completed"}) → 清理 pending
 
 管道内触发:
   session_search(slotName="final_output") → 收集多篇历史发布
   snapshot_read → 了解当前知识库状态
 
 分析结束时:
-  kb_write(category="analytics") → 写回分析洞察
+  memory_write(category="analytics") → 写回分析洞察
   pipeline_add_remark(agent="topic-researcher") → 反馈选题建议
   pipeline_add_remark(agent="content-writer") → 反馈写作建议
 

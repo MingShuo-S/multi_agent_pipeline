@@ -57,7 +57,7 @@
 | `pipeline_write_slot` | 写 performance_insights | 主要产出 |
 | `pipeline_add_remark` | 向 topic-researcher/content-writer 推送反馈 | 必调 |
 | `style_read_profile` | 读风格 DNA | 分析风格对效果的影响 |
-| `kb_read` / `kb_write` | 知识库读写（核心——写回报表 + 洞察） | 必调 |
+| `memory_read`（旧名 kb_read）/ `memory_write`（旧名 kb_write）| 知识库读写（核心——写回报表 + 洞察） | 必调 |
 | `session_search` | 跨 slot 历史检索（对比多篇数据） | 必调 |
 | `snapshot_read` | 读当前 KB 快照 | 了解知识库基线 |
 | `memory_compress` | KB 数据压缩（数据累积过多时） | 按需 |

@@ -164,7 +164,17 @@ export interface ToolContext {
 
 export type AgentRole = 'content-writer' | 'topic-researcher' | 'quality-reviewer' | 'publisher' | 'orchestrator' | string;
 
-export interface StyleDNA {
+export interface PatternEntry {
+  pattern: string;
+  source: string;
+  timestamp: string;
+  confirmed: boolean;
+}
+
+export interface Profile {
+  userId: string;
+  version: number;
+  voiceprintStatus: 'init' | 'sampling' | 'calibrating' | 'analyzing' | 'done';
   corePrinciples: string[];
   syntaxPatterns: Record<string, unknown>;
   vocabulary: {
@@ -173,14 +183,21 @@ export interface StyleDNA {
     techTerms: string[];
   };
   forbiddenPatterns: string[];
-  growthDirection: string;
+  learnedPatterns: PatternEntry[];
+  userSelfDescription?: string;
+  lastUpdated: string;
 }
 
-export interface StyleProfile {
-  userId: string;
-  version: number;
-  dna: StyleDNA;
-  lastUpdated: string;
+/** @deprecated Use Profile instead */
+export interface StyleProfile extends Profile {
+  /** @deprecated Legacy wrapper — use top-level fields */
+  dna?: {
+    corePrinciples: string[];
+    syntaxPatterns: Record<string, unknown>;
+    vocabulary: { highFreq: string[]; forbidden: string[]; techTerms: string[]; };
+    forbiddenPatterns: string[];
+    growthDirection: string;
+  };
 }
 
 export interface KBEntry {

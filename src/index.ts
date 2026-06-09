@@ -12,6 +12,7 @@ import { pipelineStatus } from './tools/pipeline-status.js';
 import { pipelineDisplay } from './tools/pipeline-display.js';
 import { styleReadProfile, styleWriteProfile, kbWrite, kbRead, styleExtractSignal, voiceprintInit, styleGetContext, voiceprintAnalyze, voiceprintCalibrate, voiceprintConfirm, voiceprintProceed, voiceprintReset } from './tools/style-system.js';
 import { sessionSearch, sessionSearchAll, freezeSnapshot, readSnapshot, writeSessionNote, readSessionNote, autoCompress } from './tools/session-memory.js';
+import { knowledgeRead } from './tools/knowledge-reader.js';
 import { StateManager } from './runtime/state-manager.js';
 import { WORKSPACE_ROOT } from './config.js';
 import type { ToolContext, CorrectionSignal } from './types.js';
@@ -176,7 +177,7 @@ export default defineToolPlugin({
     tool({
       name: 'style_read_profile',
       label: 'style_read_profile',
-      description: '读取用户的完整风格 DNA 配置（_shared/style-dna.json）',
+      description: '读取用户的完整风格配置文件（_profiles/{userId}/profile.json）',
       parameters: Type.Object({}),
       async execute(_params, _config, ctx) {
         try {
@@ -192,9 +193,9 @@ export default defineToolPlugin({
     tool({
       name: 'style_write_profile',
       label: 'style_write_profile',
-      description: '写入用户的完整风格 DNA 配置',
+      description: '写入用户的完整风格配置文件',
       parameters: Type.Object({
-        profile: Type.Any({ description: 'StyleProfile 对象' }),
+        profile: Type.Any({ description: 'Profile 对象' }),
       }),
       async execute(params, _config, ctx) {
         try {
@@ -239,9 +240,72 @@ export default defineToolPlugin({
     }),
 
     tool({
+      name: 'memory_write',
+      label: 'memory_write',
+      description: '写入一条用户记忆条目（_profiles/{userId}/memory.json）',
+      parameters: Type.Object({
+        category: Type.Union([
+          Type.Literal('persona'),
+          Type.Literal('insight'),
+          Type.Literal('fact'),
+          Type.Literal('feedback'),
+        ], { description: '条目分类' }),
+        content: Type.String({ description: '条目内容' }),
+        confidence: Type.Union([
+          Type.Literal('high'),
+          Type.Literal('medium'),
+          Type.Literal('low'),
+        ], { description: '置信度' }),
+      }),
+      async execute(params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const p = params as any;
+          await kbWrite(c.workspace_root, c.user_id, {
+            userId: c.user_id,
+            category: p.category,
+            content: p.content,
+            source: c.agent_name,
+            timestamp: new Date().toISOString(),
+            confidence: p.confidence,
+          });
+          return '知识库条目已写入';
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'memory_read',
+      label: 'memory_read',
+      description: '读取用户知识库条目（memory.json）',
+      parameters: Type.Object({
+        category: Type.Optional(Type.Union([
+          Type.Literal('persona'),
+          Type.Literal('insight'),
+          Type.Literal('fact'),
+          Type.Literal('feedback'),
+        ], { description: '按分类筛选（可选）' })),
+      }),
+      async execute(params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const p = params as any;
+          const entries = await kbRead(c.workspace_root, c.user_id, p.category);
+          return entries.length > 0 ? entries : { message: '知识库暂无条目' };
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    // ——— 向后兼容：kb_read / kb_write 别名 ———
+
+    tool({
       name: 'kb_write',
       label: 'kb_write',
-      description: '写入一条用户知识库条目（_shared/kb.json）',
+      description: '[已弃用] 请用 memory_write 替代。写入一条用户记忆条目。',
       parameters: Type.Object({
         category: Type.Union([
           Type.Literal('persona'),
@@ -278,7 +342,7 @@ export default defineToolPlugin({
     tool({
       name: 'kb_read',
       label: 'kb_read',
-      description: '读取用户知识库条目',
+      description: '[已弃用] 请用 memory_read 替代。读取用户知识库条目。',
       parameters: Type.Object({
         category: Type.Optional(Type.Union([
           Type.Literal('persona'),
@@ -293,6 +357,30 @@ export default defineToolPlugin({
           const p = params as any;
           const entries = await kbRead(c.workspace_root, c.user_id, p.category);
           return entries.length > 0 ? entries : { message: '知识库暂无条目' };
+        } catch (err) {
+          return `错误: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      },
+    }),
+
+    tool({
+      name: 'knowledge_read',
+      label: 'knowledge_read',
+      description: '读取内置知识文档。不传 docName 返回可用文档列表；传 docName 返回文档完整内容。知识文档位于 knowledge/ 目录，系统预置，只读。',
+      parameters: Type.Object({
+        docName: Type.Optional(Type.String({ description: '文档名称（如 rules.md）。不传则返回可用文档列表。' })),
+      }),
+      async execute(params, _config, ctx) {
+        try {
+          const c = toolCtx(ctx);
+          const p = params as any;
+          const result = await knowledgeRead(c.workspace_root, p.docName);
+          if (p.docName) {
+            return result || { message: `文档 "${p.docName}" 不存在` };
+          }
+          const docs = result as { name: string; path: string; content: string }[];
+          if (docs.length === 0) return { message: '知识目录为空或不存在' };
+          return docs.map(d => `- ${d.name}`).join('\n');
         } catch (err) {
           return `错误: ${err instanceof Error ? err.message : String(err)}`;
         }
@@ -467,7 +555,7 @@ export default defineToolPlugin({
     tool({
       name: 'voiceprint_analyze',
       label: 'voiceprint_analyze',
-      description: '[Voiceprint 步骤 9] 写入子 agent 的分析结论到 style-dna.json。需在步骤 9 调用。',
+      description: '[Voiceprint 步骤 9] 写入子 agent 的分析结论到 profile.json。需在步骤 9 调用。',
       parameters: Type.Object({
         samples: Type.Array(Type.Object({
           text: Type.String({ description: '样本文本' }),
@@ -607,7 +695,7 @@ export default defineToolPlugin({
     tool({
       name: 'snapshot_create',
       label: 'snapshot_create',
-      description: '冻结当前 KB 状态为快照（写入 _shared/{userId}/memory/session-snapshot.md）。Agent 可在关键里程碑后手动调用，或 pipeline_start 在 session 启动时自动调用。快照在 session 内不更新，保护 LLM prefix cache。',
+      description: '冻结当前 KB 状态为快照（写入 _profiles/{userId}/memory/session-snapshot.md）。Agent 可在关键里程碑后手动调用，或 pipeline_start 在 session 启动时自动调用。快照在 session 内不更新，保护 LLM prefix cache。',
       parameters: Type.Object({}),
       async execute(_params, _config, ctx) {
         try {
@@ -701,4 +789,4 @@ export { WorkspaceConfigManager } from './tools/workspace-config.js';
 export { AgentGuideGenerator } from './tools/agent-guide-generator.js';
 export { StyleSystem } from './tools/style-system.js';
 export { InjectionLayer } from './runtime/injection-layer.js';
-export type { ToolContext, Template, PipelineState, PipelineStage, StyleProfile, KBEntry, CorrectionSignal, InjectionBlock, AgentRole } from './types.js';
+export type { ToolContext, Template, PipelineState, PipelineStage, Profile, KBEntry, CorrectionSignal, InjectionBlock, AgentRole } from './types.js';

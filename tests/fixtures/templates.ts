@@ -1,6 +1,6 @@
 import type {
   Template, PipelineState, ToolContext, PipelineStage, PipelineRemark,
-  SlotHistoryEntry, StageHistoryEntry, AgentProfile, StyleProfile, AgentRole,
+  SlotHistoryEntry, StageHistoryEntry, AgentProfile, Profile, AgentRole,
   PipelineMode,
 } from '../../src/types.js';
 
@@ -154,17 +154,14 @@ export function makeEmptyProfile(): AgentProfile {
   };
 }
 
-export function makeStyleProfile(overrides?: Partial<StyleProfile>): StyleProfile {
+export function makeStyleProfile(overrides?: Partial<Profile>): Profile {
   return {
     userId: UID,
     version: 1,
-    dna: {
-      corePrinciples: [],
-      syntaxPatterns: {},
-      vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
-      forbiddenPatterns: [],
-      growthDirection: '',
-    },
+    corePrinciples: [],
+    syntaxPatterns: {},
+    vocabulary: { highFreq: [], forbidden: [], techTerms: [] },
+    forbiddenPatterns: [],
     lastUpdated: '2025-01-01T00:00:00.000Z',
     ...overrides,
   };

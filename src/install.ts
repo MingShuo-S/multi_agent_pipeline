@@ -14,6 +14,54 @@ export async function initializeWorkspace(): Promise<void> {
     const root = WORKSPACE_ROOT;
     const shared = PROFILES_DIR;
 
+    // ===== 目录迁移（旧名称→新名称） =====
+    const oldShared = path.join(root, '_shared');
+    try {
+      await fs.access(oldShared);
+      try {
+        await fs.access(shared);
+        // 新旧都存在：合并内容（新优先）
+        const oldUsers = await fs.readdir(oldShared);
+        for (const user of oldUsers) {
+          const oldUserDir = path.join(oldShared, user);
+          const newUserDir = path.join(shared, user);
+          try {
+            await fs.access(newUserDir);
+            // 已存在，跳过
+          } catch {
+            await fs.rename(oldUserDir, newUserDir);
+          }
+        }
+      } catch {
+        // 新目录不存在，整体重命名
+        await fs.rename(oldShared, shared);
+      }
+    } catch {
+      // old _shared/ doesn't exist — OK
+    }
+
+    const oldKB = path.join(root, 'kb_platform');
+    const newKB = path.join(root, 'knowledge');
+    try {
+      await fs.access(oldKB);
+      try {
+        await fs.access(newKB);
+        const oldMarkdowns = await fs.readdir(oldKB);
+        for (const f of oldMarkdowns) {
+          if (f.endsWith('.md') || f.endsWith('.txt')) {
+            const dest = path.join(newKB, f);
+            try {
+              await fs.access(dest);
+            } catch {
+              await fs.rename(path.join(oldKB, f), dest);
+            }
+          }
+        }
+      } catch {
+        await fs.rename(oldKB, newKB);
+      }
+    } catch {};
+
     // ===== 目录结构 =====
     const dirs = [
       root,
@@ -123,9 +171,8 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
     // ===== 共享知识库模板 =====
     const templateDir = path.join(shared, '__template__');
 
-    // style-dna.json
+    // profile.json (legacy: style-dna.json)
     const styleTemplate = {
-      comment: '风格 DNA 模板。由 Voiceprint 流程或 style_write_profile 工具填充。',
       userId: '__USER_ID__',
       version: 1,
       dna: {
@@ -138,13 +185,13 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
       lastUpdated: '',
     };
     await fs.writeFile(
-      path.join(templateDir, 'style-dna.json'),
+      path.join(templateDir, 'profile.json'),
       JSON.stringify(styleTemplate, null, 2),
       'utf-8',
     );
 
-    // kb.json
-    await fs.writeFile(path.join(templateDir, 'kb.json'), '[]', 'utf-8');
+    // memory.json
+    await fs.writeFile(path.join(templateDir, 'memory.json'), '[]', 'utf-8');
 
     // README.md for _profiles/{userId}/
     const sharedUserReadme = `# 用户知识区 — _profiles/{userId}/
@@ -196,7 +243,7 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
 
 对应 0.AI工作区 的 0logs/。
 
-记录知识库的结构性变更。每次 style-dna.json 或 kb.json 更新时追加。
+记录 profile.json / memory.json 的结构性变更。每次更新时追加。
 `;
     await fs.writeFile(path.join(templateDir, 'logs', '00-README.md'), logsReadme, 'utf-8');
 

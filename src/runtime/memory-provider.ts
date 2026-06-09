@@ -1,7 +1,7 @@
 // src/runtime/memory-provider.ts - MemoryProvider 接口定义 (P2-9)
 // 为后续换 SQLite/Honcho 后端做准备
 
-import type { AgentProfile, KBEntry, StyleProfile } from '../types.js';
+import type { AgentProfile, KBEntry, Profile } from '../types.js';
 
 /**
  * MemoryProvider 接口
@@ -19,8 +19,8 @@ export interface MemoryProvider {
   writeKB(userId: string, entry: KBEntry): Promise<void>;
 
   // ---- Style Profile ----
-  getStyleProfile(userId: string): Promise<StyleProfile | null>;
-  setStyleProfile(userId: string, profile: StyleProfile): Promise<void>;
+  getStyleProfile(userId: string): Promise<Profile | null>;
+  setStyleProfile(userId: string, profile: Profile): Promise<void>;
 
   // ---- Insights ----
   readInsights(userId: string): Promise<string | null>;
@@ -60,7 +60,7 @@ export class FileSystemMemoryProvider implements MemoryProvider {
   async readKB(userId: string, category?: string): Promise<KBEntry[]> {
     const { promises: fs } = await import('fs');
     const path = await import('path');
-    const kbPath = path.default.join(this.workspaceRoot, '_shared', userId, 'kb.json');
+    const kbPath = path.default.join(this.workspaceRoot, '_profiles', userId, 'kb.json');
     try {
       const content = await fs.readFile(kbPath, 'utf-8');
       const entries: KBEntry[] = JSON.parse(content);
@@ -73,7 +73,7 @@ export class FileSystemMemoryProvider implements MemoryProvider {
   async writeKB(userId: string, entry: KBEntry): Promise<void> {
     const { promises: fs } = await import('fs');
     const path = await import('path');
-    const kbPath = path.default.join(this.workspaceRoot, '_shared', userId, 'kb.json');
+    const kbPath = path.default.join(this.workspaceRoot, '_profiles', userId, 'kb.json');
     let entries: KBEntry[] = [];
     try {
       const content = await fs.readFile(kbPath, 'utf-8');
@@ -84,30 +84,22 @@ export class FileSystemMemoryProvider implements MemoryProvider {
     await fs.writeFile(kbPath, JSON.stringify(entries, null, 2), 'utf-8');
   }
 
-  async getStyleProfile(userId: string): Promise<StyleProfile | null> {
-    const { promises: fs } = await import('fs');
-    const path = await import('path');
-    const profilePath = path.default.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
-    try {
-      const content = await fs.readFile(profilePath, 'utf-8');
-      return JSON.parse(content) as StyleProfile;
-    } catch {
-      return null;
-    }
+  async getStyleProfile(userId: string): Promise<Profile | null> {
+    const { StyleSystem } = await import('../tools/style-system.js');
+    const system = new StyleSystem(this.workspaceRoot, userId);
+    return await system.readProfile();
   }
 
-  async setStyleProfile(userId: string, profile: StyleProfile): Promise<void> {
-    const { promises: fs } = await import('fs');
-    const path = await import('path');
-    const profilePath = path.default.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
-    await fs.mkdir(path.default.dirname(profilePath), { recursive: true });
-    await fs.writeFile(profilePath, JSON.stringify(profile, null, 2), 'utf-8');
+  async setStyleProfile(userId: string, profile: Profile): Promise<void> {
+    const { StyleSystem } = await import('../tools/style-system.js');
+    const system = new StyleSystem(this.workspaceRoot, userId);
+    await system.writeProfile(profile);
   }
 
   async readInsights(userId: string): Promise<string | null> {
     const { promises: fs } = await import('fs');
     const path = await import('path');
-    const insightsPath = path.default.join(this.workspaceRoot, '_shared', userId, 'insights.md');
+    const insightsPath = path.default.join(this.workspaceRoot, '_profiles', userId, 'insights.md');
     try {
       return await fs.readFile(insightsPath, 'utf-8');
     } catch {
@@ -118,7 +110,7 @@ export class FileSystemMemoryProvider implements MemoryProvider {
   async appendInsight(userId: string, content: string, agent: string): Promise<void> {
     const { promises: fs } = await import('fs');
     const path = await import('path');
-    const insightsPath = path.default.join(this.workspaceRoot, '_shared', userId, 'insights.md');
+    const insightsPath = path.default.join(this.workspaceRoot, '_profiles', userId, 'insights.md');
     const timestamp = new Date().toISOString();
     const entry = `\n[${timestamp}] (${agent}) ${content}\n`;
     await fs.mkdir(path.default.dirname(insightsPath), { recursive: true });

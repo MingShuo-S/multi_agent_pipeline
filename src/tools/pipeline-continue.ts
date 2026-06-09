@@ -232,7 +232,8 @@ async function executeDialogue(
   // 可用工具说明
   promptParts.push(
     `【可用工具】\n` +
-    `- \`kb_read\` / \`kb_write\`：读写用户知识库（记录调研发现、用户偏好、事实条目）\n` +
+    `- \`memory_read\` / \`memory_write\`：读写用户记忆库（记录调研发现、用户偏好、事实条目）\n` +
+    `- \`kb_read\` / \`kb_write\`：同上，旧名称仍可用\n` +
     `- \`style_read_profile\`：读取用户风格偏好\n` +
     `- \`style_extract_signal\`：记录用户对你输出的纠正信号\n` +
     `- \`style_get_context\`：获取完整风格上下文（content-writer 专用）\n` +
@@ -347,7 +348,7 @@ async function autoAdvanceNonCheckpoint(
       `【搜索说明】搜索请用 \`web_fetch\` 替代 \`web_search\`（未配置）。推荐引擎：搜狗、百度、必应、DuckDuckGo。\n`
     );
     promptParts.push(
-      `【可用工具】\`kb_read\`/\`kb_write\` 读写知识库，\`style_read_profile\` 读风格偏好。\n`
+      `【可用工具】\`memory_read\`/\`memory_write\` 读写记忆库，\`kb_read\`/\`kb_write\`（旧名兼容），\`style_read_profile\` 读风格偏好。\n`
     );
     promptParts.push(`请根据已有信息完成你的工作。直接输出内容，不要使用工具调用。`);
     const prompt = promptParts.join('\n');

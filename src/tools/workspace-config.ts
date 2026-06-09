@@ -156,20 +156,16 @@ export class WorkspaceConfigManager {
   }
 
   async readSharedProfile(userId: string): Promise<object> {
-    const profilePath = path.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
-    try {
-      const content = await fs.readFile(profilePath, 'utf-8');
-      return JSON.parse(content);
-    } catch {
-      return {};
-    }
+    const { StyleSystem } = await import('./style-system.js');
+    const system = new StyleSystem(this.workspaceRoot, userId);
+    const profile = await system.readProfile();
+    return profile || {};
   }
 
-  async writeSharedProfile(userId: string, profile: object): Promise<void> {
-    const profilePath = path.join(this.workspaceRoot, '_shared', userId, 'style-dna.json');
-    const dir = path.dirname(profilePath);
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(profilePath, JSON.stringify(profile, null, 2), 'utf-8');
+  async writeSharedProfile(userId: string, data: object): Promise<void> {
+    const { StyleSystem } = await import('./style-system.js');
+    const system = new StyleSystem(this.workspaceRoot, userId);
+    await system.writeProfile(data as any);
   }
 
   async resetTemplate(templateName: string): Promise<void> {

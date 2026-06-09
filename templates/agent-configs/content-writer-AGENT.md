@@ -60,7 +60,7 @@
 | `style_get_context` | 拉取完整风格上下文（DNA + persona + insights） | 写前必调 |
 | `style_write_profile` | 写回风格偏好（用户修正时） | 修正后调 |
 | `style_extract_signal` | 记录纠正信号（对话中自动调） | 修正后调 |
-| `kb_read` / `kb_write` | 平台知识库读写 | 按需 |
+| `memory_read`（旧名 kb_read）/ `memory_write`（旧名 kb_write）| 平台知识库读写 | 按需 |
 | `session_search` | 跨 slot 历史检索 | 按需 |
 | `snapshot_read` | 读当前 KB 快照 | 写前调 |
 | `session_note_read` / `session_note_write` | Agent 自述笔记 | 交接后调 |
@@ -85,7 +85,7 @@
 
 | Skill | 用途 | 安装方式 | 配置位置 |
 |-------|------|---------|---------|
-| `style-voiceprint` | Onboarding 风格提取：收集样本 → LLM 分析 → 生成 style-dna.json | 本地 `skills/style-voiceprint/` → `~/.openclaw/skills/` | `openclaw.json` agents 白名单 |
+| `style-voiceprint` | Onboarding 风格提取：收集样本 → LLM 分析 → 生成 profile.json | 本地 `skills/style-voiceprint/` → `~/.openclaw/skills/` | `openclaw.json` agents 白名单 |
 
 依赖 pipeline 已注册的 `voiceprint_*` 工具组（`voiceprint_init` / `voiceprint_proceed` / `voiceprint_calibrate` / `voiceprint_analyze` / `voiceprint_confirm` / `voiceprint_reset`），不额外依赖外部服务。
 

@@ -50,8 +50,8 @@
 |------|------|----------|
 | `web_fetch` | 网络搜索 + 内容抓取（替代 `web_search`） | 必选 |
 | `style_read_profile` | 读用户风格 DNA（选题偏好） | 可选 |
-| `kb_read` | 读用户画像 + 历史选题 + 领域知识 | 可选 |
-| `kb_write` | 记录调研洞察到知识库 | 可选 |
+| `memory_read`（旧名 kb_read）| 读用户画像 + 历史选题 + 领域知识 | 可选 |
+| `memory_write`（旧名 kb_write）| 记录调研洞察到知识库 | 可选 |
 | `group:code` | 代码执行（数据处理） | 可选 |
 | `group:read` | 文件读取（本地资料） | 可选 |
 
