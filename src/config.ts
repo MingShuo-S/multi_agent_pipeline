@@ -23,4 +23,8 @@ export const WORKSPACE_ROOT = wsRoot;
 
 export const SEED_TEMPLATES_DIR = join(__dirname, '..', 'templates');
 
-export const SHARED_DIR = join(wsRoot, '_shared');
+export const PROFILES_DIR = join(wsRoot, '_profiles');
+export const KNOWLEDGE_DIR = join(wsRoot, 'knowledge');
+
+/** @deprecated Use PROFILES_DIR instead */
+export const SHARED_DIR = PROFILES_DIR;

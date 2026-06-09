@@ -3,7 +3,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WORKSPACE_ROOT, SHARED_DIR } from './config.js';
+import { WORKSPACE_ROOT, PROFILES_DIR } from './config.js';
 
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const RULES_TEMPLATES_DIR = path.join(__dirname, 'rules');
@@ -12,7 +12,7 @@ import { WORKSPACE_ROOT, SHARED_DIR } from './config.js';
 export async function initializeWorkspace(): Promise<void> {
   try {
     const root = WORKSPACE_ROOT;
-    const shared = SHARED_DIR;
+    const shared = PROFILES_DIR;
 
     // ===== 目录结构 =====
     const dirs = [
@@ -46,15 +46,15 @@ export async function initializeWorkspace(): Promise<void> {
 | \`templates/\` | — | 管道模板 JSON |
 | \`projects/\` | — | 项目运行状态（自动生成） |
 | \`agent-guides/\` | 指导/ | Agent 管道协作指南 |
-| \`_shared/\` | AI笔记/ + 用户建模/ + .styles/ | 跨 Agent 共享知识库 |
+| \`_profiles/\` | AI笔记/ + 用户建模/ + .styles/ | 用户私有知识区 |
 
 ## 温度图谱
 
 | 温度 | 目录 | 注入策略 |
 |------|------|---------|
-| HOT | \`_shared/{userId}/style-dna.json#corePrinciples\` | 每 session 必读，头部硬注入 |
-| WARM | \`_shared/{userId}/style-dna.json#forbiddenPatterns + #vocabulary\` | 按角色需求注入 |
-| COLD | \`_shared/{userId}/kb.json + profile/\` | 通过工具按需读取 |
+| HOT | \`_profiles/{userId}/profile.json/corePrinciples\` | 每 session 必读，头部硬注入 |
+| WARM | \`_profiles/{userId}/profile.json#forbiddenPatterns + #vocabulary\` | 按角色需求注入 |
+| COLD | \`_profiles/{userId}/memory.json + profile/\` | 通过工具按需读取 |
 `,
       'rules/README.md': `# 规则目录
 
@@ -146,32 +146,26 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
     // kb.json
     await fs.writeFile(path.join(templateDir, 'kb.json'), '[]', 'utf-8');
 
-    // README.md for _shared/{userId}/
-    const sharedUserReadme = `# 用户知识库 — _shared/{userId}/
+    // README.md for _profiles/{userId}/
+    const sharedUserReadme = `# 用户知识区 — _profiles/{userId}/
 
-| 文件 | 对应 0.AI工作区 | 温度 | 用途 |
-|------|----------------|------|------|
-| \`style-dna.json\` | .styles/ | HOT + WARM | 风格 DNA，content-writer 独占 |
-| \`kb.json\` | AI笔记/ | COLD | 结构化知识条目，所有 agent 可读 |
-| \`kb.ai.md\` | _ai/ 伴侣文件 | COLD | kb.json 的 AI 可扫描紧凑版 |
-| \`profile/persona.md\` | 用户建模/ | COLD | 用户画像，所有 agent 可读 |
-| \`memory/insights.md\` | AI笔记/洞察 | COLD | 交互洞察，所有 agent 追加 |
+| 文件 | 对应 0.AI工作区 | 层 | 用途 |
+|------|----------------|-----|------|
+| \`profile.json\` | .styles/ + 用户建模/ | PROFILE | 风格 DNA + 画像，进化式学习 |
+| \`memory.json\` | AI笔记/ | MEMORY | 运行时记忆（insight/fact/feedback） |
+| \`profile/persona.md\` | 用户建模/ | COLD | 用户画像摘要，只读 |
+| \`memory/insights.md\` | AI笔记/洞察 | COLD | 交互洞察，追加日志 |
+| \`memory/session-*.md\` | — | EPHEMERAL | session 快照/笔记 |
 | \`logs/\` | 0logs/ | COLD | 变更日志 |
 
-## 访问规则
+## PROFILE 写入规则
 
-| Agent | 读 | 写 |
-|-------|----|----|
-| content-writer | style-dna.json + 全部 | 全部 |
-| 其他 Agent | persona.md + kb.json + insights.md | memory/ 追加 |
-| orchestrator | 全部 | 全部 |
-
-## 自动填充
-
-- style-dna.json: Voiceprint 首次写入，后续由纠正信号自动更新
-- kb.json: style_record_feedback + kb_write 工具写入
-- persona.md: pipeline-continue 拦截钩子更新
-- insights.md: 每次纠正/正面信号追加
+| 操作 | AI | User |
+|------|----|------|
+| corePrinciples | ❌（仅 voiceprint 初始写入） | ✅（确认 learned 后提升） |
+| forbiddenPatterns | ✅（检测到用户禁止时追加） | ✅ |
+| learnedPatterns | ✅（检测到偏好变化时追加） | ❌（但可确认提升） |
+| voiceprint 字段 | ✅（仅 voiceprint 流程写入） | ❌ |
 `;
     await fs.writeFile(path.join(shared, '__template__', 'README.md'), sharedUserReadme, 'utf-8');
 
