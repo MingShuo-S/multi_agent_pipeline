@@ -5,7 +5,6 @@ import { PipelineState, Template, callSubagent, InterruptPoint, Reducer } from '
 import { StateManager } from '../runtime/state-manager.js';
 import { WorkspaceConfigManager, initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
-import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { StyleSystem } from './style-system.js';
 import { detectStyleSignals, extractAndRecordSignals } from './style-signal-detector.js';
 import { WORKSPACE_ROOT } from '../config.js';
@@ -177,13 +176,60 @@ async function executeDialogue(
     await extractAndRecordSignals(workspaceRoot, userId, signals, stage.agent);
   }
 
-  const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
   const memoryManager = new MemoryManager(workspaceRoot, userId, stage.agent);
   const profile = await memoryManager.getProfile();
 
-  const prompt = await promptBuilder.buildPipelinePrompt(
-    stage.agent, template, state, profile, message
+  // 构建简化 prompt（不含 pipeline 工具指令，子 agent 在隔离 sandbox 下工具不可用）
+  const promptParts: string[] = [];
+
+  // 角色定义
+  promptParts.push(
+    `你正在参与一个多阶段创作流程。\n` +
+    `你的角色是：${stage.agent}\n` +
+    `当前阶段：${stage.id} - ${stage.description || ''}\n` +
+    `项目：${userId}/${projectId}（模板：${template.name}）\n`
   );
+
+  // 已有上下文（可读 slot 内容）
+  const readableSlots = stage.allow_read;
+  if (readableSlots.includes('*') || readableSlots.length > 0) {
+    const slotLines: string[] = [];
+    for (const slotName of readableSlots) {
+      if (slotName === '*') {
+        for (const [k, v] of Object.entries(state.slot_values)) {
+          if (v !== undefined && v !== '') {
+            const content = typeof v === 'string' ? v : JSON.stringify(v, null, 2);
+            slotLines.push(`${k}:\n${content}`);
+          }
+        }
+        break;
+      }
+      const value = state.slot_values[slotName];
+      if (value !== undefined && value !== '') {
+        const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        slotLines.push(`${slotName}:\n${content}`);
+      }
+    }
+    if (slotLines.length > 0) {
+      promptParts.push(`【已有上下文】\n${slotLines.join('\n')}\n`);
+    }
+  }
+
+  // 用户偏好（可选）
+  if (profile?.preferences && Object.keys(profile.preferences).length > 0) {
+    promptParts.push(
+      `【用户偏好】\n${JSON.stringify(profile.preferences, null, 2)}\n`
+    );
+  }
+
+  // 用户消息
+  if (message) {
+    promptParts.push(
+      `【用户消息】\n${message}\n\n请根据以上信息完成你的工作。直接输出内容，不要使用工具调用。`
+    );
+  }
+
+  const prompt = promptParts.join('\n');
 
   const sessionKey = `${stage.agent}:${userId}:${projectId}`;
   const slotName = stage.allow_write[0];
@@ -263,10 +309,25 @@ async function autoAdvanceNonCheckpoint(
     const stage = template.stages[nextStage];
     if (stage.checkpoint) break;
 
-    const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
-    const prompt = await promptBuilder.buildPipelinePrompt(
-      stage.agent, template, s, {} as any, '请根据已有信息完成你的工作'
-    );
+    const promptParts: string[] = [
+      `你正在参与一个多阶段创作流程。\n` +
+      `你的角色是：${stage.agent}\n` +
+      `当前阶段：${stage.id} - ${stage.description || ''}\n` +
+      `项目：${userId}（模板：${template.name}）\n`
+    ];
+    const slotLines: string[] = [];
+    for (const slotName of stage.allow_read) {
+      const value = s.slot_values[slotName];
+      if (value !== undefined && value !== '') {
+        const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        slotLines.push(`${slotName}:\n${content}`);
+      }
+    }
+    if (slotLines.length > 0) {
+      promptParts.push(`【已有上下文】\n${slotLines.join('\n')}\n`);
+    }
+    promptParts.push(`请根据已有信息完成你的工作。直接输出内容，不要使用工具调用。`);
+    const prompt = promptParts.join('\n');
     const sessionKey = `${stage.agent}:${userId}:${projectId}`;
     const agentResponse = await callSubagent(api, sessionKey, prompt);
     const slotName = stage.allow_write[0];
