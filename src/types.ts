@@ -162,7 +162,7 @@ export interface ToolContext {
 
 // ---- 以下为新加类型 ----
 
-export type AgentRole = 'content-writer' | 'topic-researcher' | 'web-researcher' | 'quality-reviewer' | 'publisher' | 'orchestrator' | string;
+export type AgentRole = 'content-writer' | 'topic-researcher' | 'quality-reviewer' | 'publisher' | 'orchestrator' | string;
 
 export interface StyleDNA {
   corePrinciples: string[];

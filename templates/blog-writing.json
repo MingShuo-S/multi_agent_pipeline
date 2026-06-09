@@ -8,7 +8,8 @@
       "topic": { "description": "用户输入的博客主题", "type": "string", "required": true }
     },
     "working": {
-      "research_data": { "description": "调研收集的素材和数据", "type": "string" },
+      "topic_brief": { "description": "选题简报：方向确认和思路", "type": "string" },
+      "research_notes": { "description": "调研收集的素材和数据", "type": "string" },
       "draft": { "description": "博客正文草稿", "type": "string" }
     },
     "output": {
@@ -18,17 +19,17 @@
   "stages": [
     {
       "id": "research",
-      "agent": "web-researcher",
+      "agent": "topic-researcher",
       "checkpoint": true,
       "allow_read": ["topic"],
-      "allow_write": ["research_data"],
-      "description": "调研：收集相关素材和数据"
+      "allow_write": ["topic_brief", "research_notes"],
+      "description": "调研：确认选题方向 + 收集素材和数据"
     },
     {
       "id": "writing",
       "agent": "content-writer",
       "checkpoint": true,
-      "allow_read": ["topic", "research_data"],
+      "allow_read": ["topic", "topic_brief", "research_notes"],
       "allow_write": ["draft"],
       "description": "写作：生成博客正文"
     },
@@ -52,7 +53,8 @@
   ],
   "slots": {
     "topic": { "type": "text", "default": "" },
-    "research_data": { "type": "text", "default": "" },
+    "topic_brief": { "type": "text", "default": "" },
+    "research_notes": { "type": "text", "default": "" },
     "draft": { "type": "text", "default": "" },
     "final_post": { "type": "text", "default": "" }
   }

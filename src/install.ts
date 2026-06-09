@@ -86,7 +86,6 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
 | \`content-writer-guide.md\` | content-writer |
 | \`orchestrator-guide.md\` | orchestrator |
 | \`topic-researcher-guide.md\` | topic-researcher |
-| \`web-researcher-guide.md\` | web-researcher |
 | \`quality-reviewer-guide.md\` | quality-reviewer |
 | \`publisher-guide.md\` | publisher |
 `,
@@ -238,13 +237,13 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
     // ===== 默认模板 =====
     const defaultTemplate = {
       name: 'xiaohongshu-creation',
-      description: '生成一篇小红书笔记',
+      description: '小红书笔记创作：选题调研 → 写作 → 审核 → 发布 → 回采',
       stages: [
-        { id: 'topic-research', agent: 'topic-researcher', checkpoint: false, allow_read: ['*'], allow_write: ['topic_brief'] },
-        { id: 'web-research', agent: 'web-researcher', checkpoint: false, allow_read: ['topic_brief'], allow_write: ['research_notes'] },
+        { id: 'topic-research', agent: 'topic-researcher', checkpoint: false, allow_read: ['*'], allow_write: ['topic_brief', 'research_notes'] },
         { id: 'draft-writing', agent: 'content-writer', checkpoint: true, allow_read: ['topic_brief', 'research_notes'], allow_write: ['draft_content'] },
         { id: 'review', agent: 'quality-reviewer', checkpoint: false, allow_read: ['draft_content', 'research_notes'], allow_write: ['review_feedback'] },
         { id: 'publish', agent: 'publisher', checkpoint: false, allow_read: ['draft_content', 'review_feedback'], allow_write: ['final_output'] },
+        { id: 'post-analysis', agent: 'post-analyst', checkpoint: false, allow_read: ['final_output'], allow_write: ['performance_insights'] },
       ],
       slots: {
         topic_brief: { type: 'text', default: '' },
@@ -252,6 +251,7 @@ JSON 格式。每文件一个模板。由 \`workspace_config\` 工具读写。
         draft_content: { type: 'text', default: '' },
         review_feedback: { type: 'text', default: '' },
         final_output: { type: 'text', default: '' },
+        performance_insights: { type: 'text', default: '' },
       },
     };
 

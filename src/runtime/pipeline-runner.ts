@@ -153,19 +153,11 @@ export class PipelineRunner {
 
     if (agentName === 'topic-researcher') {
       return `[选题研究员] 收到你的消息："${userMessage.substring(0, 100)}..."\n\n` +
-        `基于你的反馈，我更新了选题方向：\n\n` +
-        `方向A：南京深度烟火气线\n` +
-        `方向B：杭州文艺烟火气线\n` +
-        `方向C：苏州水乡生活线\n\n` +
-        `你希望重点写哪个城市？确认后我写入 topic_brief slot。`;
-    }
-
-    if (agentName === 'web-researcher') {
-      return `[网络调研员] 已完成调研！\n\n` +
+        `选题方向已确认 + 调研数据已就绪！\n\n` +
+        `方向：南京红庙烟火气（美食+人文）\n` +
         `路线验证：红庙→朝天宫→莫愁湖公园，全程4-5公里\n` +
-        `门票：朝天宫25元（学生半价），莫愁湖免费\n` +
-        `共享单车：1.5元/30分钟\n\n` +
-        `数据已写入 research_notes slot。`;
+        `门票：朝天宫25元（学生半价），莫愁湖免费\n\n` +
+        `数据已写入 topic_brief + research_notes slot。`;
     }
 
     if (agentName === 'content-writer') {

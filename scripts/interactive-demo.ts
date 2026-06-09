@@ -19,38 +19,39 @@ const TPL_NAME = 'demo-template';
 
 const STAGES_META: Record<string, { label: string }> = {
   'topic-researcher': { label: '选题研究员' },
-  'web-researcher':    { label: '网络调研员' },
   'content-writer':    { label: '内容创作者' },
   'quality-reviewer':  { label: '质量审核员' },
   'publisher':         { label: '发布专员' },
+  'post-analyst':      { label: '回采分析师' },
 };
 
 const DEMO_TEMPLATE = {
   name: TPL_NAME,
-  description: '小红书创作接力流水线',
+  description: '小红书创作接力流水线：选题调研 → 写作 → 审核 → 发布 → 回采',
   mode: 'relay',
   stages: [
-    { id: '选题调研', agent: 'topic-researcher', checkpoint: false, allow_read: ['*'], allow_write: ['topic'] },
-    { id: '网络调研', agent: 'web-researcher', checkpoint: false, allow_read: ['topic'], allow_write: ['research_data'] },
-    { id: '内容创作', agent: 'content-writer', checkpoint: true, allow_read: ['topic', 'research_data'], allow_write: ['draft'] },
-    { id: '质量审核', agent: 'quality-reviewer', checkpoint: true, allow_read: ['draft'], allow_write: ['review'] },
-    { id: '发布', agent: 'publisher', checkpoint: false, allow_read: ['draft', 'review'], allow_write: ['final'] },
+    { id: '选题调研', agent: 'topic-researcher', checkpoint: false, allow_read: ['*'], allow_write: ['topic_brief', 'research_notes'] },
+    { id: '内容创作', agent: 'content-writer', checkpoint: true, allow_read: ['topic_brief', 'research_notes'], allow_write: ['draft'] },
+    { id: '质量审核', agent: 'quality-reviewer', checkpoint: true, allow_read: ['draft', 'topic_brief'], allow_write: ['review_feedback'] },
+    { id: '发布', agent: 'publisher', checkpoint: false, allow_read: ['draft', 'review_feedback'], allow_write: ['final_output'] },
+    { id: '回采', agent: 'post-analyst', checkpoint: false, allow_read: ['final_output'], allow_write: ['performance_insights'] },
   ],
   slots: {
-    topic: { type: 'text', default: '' },
-    research_data: { type: 'text', default: '' },
+    topic_brief: { type: 'text', default: '' },
+    research_notes: { type: 'text', default: '' },
     draft: { type: 'text', default: '' },
-    review: { type: 'text', default: '' },
-    final: { type: 'text', default: '' },
+    review_feedback: { type: 'text', default: '' },
+    final_output: { type: 'text', default: '' },
+    performance_insights: { type: 'text', default: '' },
   },
 };
 
 function makeResponse(agent: string, ctx: string): string {
   switch (agent) {
     case 'topic-researcher':
-      return `[选题研究员] 选题方向已确定：南京红庙烟火气（美食+人文）。\n\n数据已写入 topic slot。`;
-    case 'web-researcher':
-      return `[网络调研员] 调研完成！\n\n- 红庙街区全长约800米，聚集30+家小吃\n- 人均消费30-50元\n- 周末客流约3000人次/天\n\n数据已写入 research_data slot。`;
+      return `[选题研究员] 选题方向已确定：南京红庙烟火气（美食+人文）。\n\n` +
+        `调研数据：\n- 红庙街区全长约800米，聚集30+家小吃\n- 人均消费30-50元\n- 周末客流约3000人次/天\n\n` +
+        `数据已写入 topic_brief + research_notes slot。`;
     case 'content-writer': {
       if (ctx === '改') {
         return `[内容创作者] 已按你的意见修改：删除了"必吃"等营销感强的词汇，增加了体验感描述。`;
@@ -60,7 +61,9 @@ function makeResponse(agent: string, ctx: string): string {
     case 'quality-reviewer':
       return `[质量审核员] 审核完成！\n\n通过：语言风格符合小红书调性，信息准确。\n建议：增加具体店名和推荐菜，结尾加互动引导。\n\n回复修改意见，或输入"下一阶段"进入发布。`;
     case 'publisher':
-      return `[发布专员] 发布预览已生成！\n\n标题：南京红庙｜本地人私藏的碳水天堂\n话题：#南京美食 #南京旅游 #citywalk\n\n项目完成！`;
+      return `[发布专员] 发布预览已生成！\n\n标题：南京红庙｜本地人私藏的碳水天堂\n话题：#南京美食 #南京旅游 #citywalk\n\n输入"下一阶段"进入回采分析。`;
+    case 'post-analyst':
+      return `[回采分析师] 效果跟踪已完成！\n\n- 24小时阅读：8,532\n- 互动率：12.3%\n- 笔记标签：'本地生活'类排名 #23\n\n建议：发布时间段15:00-17:00互动最佳，建议后续选题侧重「探店攻略」方向。\n\n项目完成！`;
     default:
       return `[${agent}] 已处理。`;
   }

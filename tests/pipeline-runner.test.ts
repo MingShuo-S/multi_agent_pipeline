@@ -77,15 +77,15 @@ describe('PipelineRunner', () => {
       const runner = new (PipelineRunner as any)(WR, UID, PID, 'simple-2stage');
       const state = makeState(0, 2);
       const r = runner.simulateAgentResponse('topic-researcher', '写南京', state, simpleTemplate2Stage);
-      expect(r).toContain('选题研究员');
-      expect(r).toContain('方向A');
+      expect(r).toContain('选题方向已确认');
+      expect(r).toContain('方向');
     });
 
-    it('web-researcher 返回调研数据', () => {
+    it('topic-researcher 返回调研数据', () => {
       const runner = new (PipelineRunner as any)(WR, UID, PID, 'simple-2stage');
       const state = makeState(1, 2);
-      const r = runner.simulateAgentResponse('web-researcher', '查路线', state, simpleTemplate2Stage);
-      expect(r).toContain('网络调研员');
+      const r = runner.simulateAgentResponse('topic-researcher', '查路线', state, simpleTemplate2Stage);
+      expect(r).toContain('调研数据');
       expect(r).toContain('红庙');
     });
 

@@ -1,6 +1,6 @@
 # 通用 Agent 协作指南
 
-> 适用: topic-researcher, web-researcher, quality-reviewer, publisher
+> 适用: topic-researcher, quality-reviewer, publisher
 
 ## 工作区
 

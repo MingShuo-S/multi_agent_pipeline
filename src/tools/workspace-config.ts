@@ -279,13 +279,14 @@ export async function initWorkspace(workspaceRoot: string): Promise<{ created: s
       name: 'default',
       description: '默认流水线模板：调研 → 创作 → 审核',
       stages: [
-        { id: 'research', agent: 'web-researcher', checkpoint: true, allow_read: ['topic'], allow_write: ['research'] },
-        { id: 'write', agent: 'content-writer', checkpoint: true, allow_read: ['topic', 'research'], allow_write: ['draft'] },
+        { id: 'research', agent: 'topic-researcher', checkpoint: true, allow_read: ['topic'], allow_write: ['topic_brief', 'research_notes'] },
+        { id: 'write', agent: 'content-writer', checkpoint: true, allow_read: ['topic', 'topic_brief', 'research_notes'], allow_write: ['draft'] },
         { id: 'review', agent: 'quality-reviewer', checkpoint: true, allow_read: ['topic', 'draft'], allow_write: ['output'] },
       ],
       slots: {
         topic: { type: 'text', default: '' },
-        research: { type: 'text', default: '' },
+        topic_brief: { type: 'text', default: '' },
+        research_notes: { type: 'text', default: '' },
         draft: { type: 'text', default: '' },
         output: { type: 'text', default: '' },
       },
