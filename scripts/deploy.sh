@@ -53,6 +53,17 @@ if ! npm config get registry 2>/dev/null | grep -q "npmmirror"; then
 fi
 
 # 配置 git 镜像（仅 GitHub，如果未配置）
+# 先清除旧代理规则，防止冲突
+git config --global --remove-section url."https://ghproxy.net/" 2>/dev/null || true
+git config --global --remove-section url."https://gitclone.com/" 2>/dev/null || true
+# 修复 remote URL（如果被代理前缀污染）
+CURRENT_REMOTE=$(git remote get-url origin 2>/dev/null || true)
+if echo "$CURRENT_REMOTE" | grep -qE "(ghproxy\.net|gitclone\.com)"; then
+  echo "  修复 remote origin（去掉代理前缀）..."
+  CLEAN_URL=$(echo "$CURRENT_REMOTE" | sed 's|https://[^/]*/https://github.com/|https://github.com/|' | sed 's|https://[^/]*/github.com/|https://github.com/|')
+  git remote set-url origin "$CLEAN_URL"
+fi
+# 设置正确的（仅代理 GitHub，不影响 push 和其他 https URL）
 if ! git config --global --get url."https://ghproxy.net/https://github.com/".insteadOf >/dev/null 2>&1; then
   echo "  配置 git 镜像（ghproxy + GitHub）..."
   git config --global url."https://ghproxy.net/https://github.com/".insteadOf "https://github.com/"
