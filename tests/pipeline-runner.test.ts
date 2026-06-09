@@ -25,6 +25,7 @@ const { mockFs, resetFs, setFile } = vi.hoisted(() => {
   const norm = (p: string) => p.replace(/\\/g, '/');
   return {
     mockFs: {
+      mkdirSync: () => {},
       promises: {
         readFile: async (p: string) => { const k = norm(p); if (files.has(k)) return files.get(k)!; throw enoent(p); },
         writeFile: async (p: string, c: string) => { files.set(norm(p), c); },
