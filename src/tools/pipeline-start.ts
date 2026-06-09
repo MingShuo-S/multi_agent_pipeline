@@ -1,9 +1,10 @@
 // src/tools/pipeline-start.ts - 启动管道（relay 模式：初始化 + 首次对话）
 
+import { promises as fs } from 'fs';
+import path from 'path';
 import { ToolContext, Template, PipelineState, PipelineStage, callSubagent, PipelineMode } from '../types.js';
 import { StateManager } from '../runtime/state-manager.js';
-import { WorkspaceConfigManager } from './workspace-config.js';
-import { initWorkspace } from './workspace-config.js';
+import { WorkspaceConfigManager, initWorkspace } from './workspace-config.js';
 import { MemoryManager } from './memory.js';
 import { PromptBuilder } from '../runtime/prompt-builder.js';
 import { WORKSPACE_ROOT } from '../config.js';
@@ -170,6 +171,10 @@ export async function pipelineStart(
     const root = workspaceRoot || WORKSPACE_ROOT;
     const stateManager = new StateManager(root, userId, projectId);
     const configManager = new WorkspaceConfigManager(root);
+
+    // 强制创建项目目录 — 确保后续 withLock 不会因目录不存在而失败
+    const projectDir = path.join(root, 'projects', userId, projectId);
+    await fs.mkdir(projectDir, { recursive: true });
 
     let template: Template;
     try {
