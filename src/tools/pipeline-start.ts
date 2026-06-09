@@ -165,11 +165,28 @@ async function autoAdvanceNonCheckpointStages(
     const stage = template.stages[nextStage];
     // 如果是 checkpoint 阶段，停止
     if (stage.checkpoint) break;
-    // 如果不是 checkpoint，自动执行
-    const promptBuilder = new PromptBuilder(workspaceRoot, userId, projectId);
-    const prompt = await promptBuilder.buildPipelinePrompt(
-      stage.agent, template, state, {} as any, "请根据已有信息完成你的工作"
+    // 构建简洁 prompt（不含 pipeline 工具指令，防止隔离 sandbox 下 agent 卡死）
+    const promptParts: string[] = [
+      `你正在参与一个多阶段创作流程。\n` +
+      `你的角色是：${stage.agent}\n` +
+      `当前阶段：${stage.id} - ${stage.description || ''}\n` +
+      `项目：${userId}/${projectId}（模板：${template.name}）\n`
+    ];
+    const slotLines: string[] = [];
+    for (const slotName of stage.allow_read) {
+      const value = state.slot_values[slotName];
+      if (value !== undefined && value !== '') {
+        const content = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+        slotLines.push(`${slotName}:\n${content}`);
+      }
+    }
+    if (slotLines.length > 0) {
+      promptParts.push(`【已有上下文】\n${slotLines.join('\n')}\n`);
+    }
+    promptParts.push(
+      `请根据以上信息完成你的工作。直接输出内容，不要使用工具调用。`
     );
+    const prompt = promptParts.join('\n');
     const sessionKey = `${stage.agent}:${userId}:${projectId}`;
     const agentResponse = await callSubagent(api, sessionKey, prompt);
     const slotName = stage.allow_write[0];
