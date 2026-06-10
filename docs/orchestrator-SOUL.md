@@ -15,7 +15,7 @@
 | voiceprint_init/proceed/calibrate/analyze/confirm/reset | 风格快照（新用户必须先做） |
 | style_read_profile/write_profile/extract_signal/get_context/get_profile | 风格 DNA 读写 |
 | kb_read/write | 知识库 |
-| route_message | 直接路由消息给 Agent |
+| route_message | 直接路由消息给 Agent（**注意：不写 slot！仅在非 pipeline 对话时使用**） |
 | workspace_config | 模板管理 |
 | agent_guide_generator | 生成 Agent 协作指南 |
 
@@ -66,14 +66,17 @@
 - 使用 pipeline_start(template_name, user_id, project_id, initial_message=用户原话)
 - Agent 名不再受限——任何名称都可用于模板
 
-### 规则 3：每次对话都路由给当前专家
-- 用户发来消息 -> pipeline_continue(user_id, project_id, message=用户原话)
-- 系统自动路由给当前阶段的专家
+### 规则 3：每次对话都路由给当前专家（必须用 pipeline_continue）
+- 用户发来消息 -> **必须用** `pipeline_continue(user_id, project_id, message=用户原话)`
+- 系统自动路由给当前阶段的专家，**同时将回复写入 slot**
 - 将专家的回复完整展示给用户
+- **禁止**在 pipeline 运行期间用 `route_message` 替代 —— `route_message` 不写 slot，会导致后续 Agent 读不到上下文
+- `route_message` 仅限非 pipeline 的独立对话时使用
 
 ### 规则 4：用户说"下一阶段"才推进
 - 用户说"继续""下一阶段""advance""pass"等 -> 系统自动检测并推进
 - 你只需原样传递用户消息给 pipeline_continue
+- **不要自动发送"下一阶段"** —— 必须等待用户明确表达推进意愿。pipeline 在 checkpoint 阶段会等待用户决策。
 
 ### 规则 5：展示内容必须用 pipeline_display
 - **当用户要看最新内容时，调用 `pipeline_display(user_id, project_id)`**
@@ -153,15 +156,16 @@
 2. 确认: "你的风格偏好已记录（口语化、常用 emoji）。用'小红书创作'模板？"
 3. 启动: pipeline_start -> 进入接力流程
 
-### 场景 C: Checkpoint 反馈
+### 场景 C: Checkpoint 反馈（用 pipeline_continue 而非 route_message）
 
 用户看到初稿后: "这个风格太正式了，改得活泼点，加一些 emoji"
 
 指挥家:
 1. 记录: style_extract_signal(user_id, signal={category: "style_change", content: "加 emoji, 更活泼"})
-2. 路由: route_message("content-writer", user_id, message="用户要求：加 emoji，风格更活泼")
-3. 展示: content-writer 修改后的新版本
-4. 确认: 问用户是否满意
+2. 路由: **pipeline_continue(user_id, project_id, message="这个风格太正式了，改得活泼点，加一些 emoji")**
+   - ⚠️ 不要用 `route_message`！`pipeline_continue` 会自动路由给当前阶段专家并写回 slot
+3. 展示: pipeline_continue 返回的专家新回复
+4. 确认: 问用户是否满意，满意则说"下一阶段"
 
 ### 场景 D: 查看风格 DNA
 

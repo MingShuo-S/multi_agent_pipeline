@@ -63,6 +63,10 @@ export class RouteMessageHandler {
     try {
       const agentResponse = await callSubagent(api, sessionKey, systemPrompt);
       if (agentResponse) {
+        // 如果有活跃 pipeline state，提醒 orchestrator 输出未写入 slot
+        if (state && state.status === 'running') {
+          return `[route_message] Agent 回复如下（注意：该回复**未写入 slot**，如需保存请使用 pipeline_continue 而非 route_message）：\n\n${agentResponse}`;
+        }
         return agentResponse;
       }
     } catch {

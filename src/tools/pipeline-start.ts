@@ -360,6 +360,9 @@ export async function pipelineStart(
         stateManager, state, template, userId, projectId, root, initialMessage, api
       );
 
+      // P0-4: reload 确保 slot_output 版本信息从磁盘读取而非 stale 变量
+      state = await stateManager.load();
+
       return {
         status: 'checkpoint_reached',
         mode,
@@ -368,12 +371,14 @@ export async function pipelineStart(
         current_agent: currentStage.agent,
         stage_description: currentStage.description,
         total_stages: template.stages.length,
-        stages: stagesSummary,
+        stages: state.current_stage >= template.stages.length
+          ? template.stages.map(s => ({ name: s.id, agent: s.agent, checkpoint: s.checkpoint, completed: true }))
+          : stagesSummary,
         slot_output: {
           slot_name: slotName,
           value: response,
           owner: currentStage.agent,
-          version: (state.slot_history[slotName]?.length || 1) - 1,
+          version: (state.slot_history[slotName]?.length || 0) - 1,
         },
         message: `${response}\n\n---\n💬 继续与 [${currentStage.agent}] 对话，或输入 "下一阶段" 推进。`,
         status_panel: buildStatusPanel(state, template, state.current_stage),

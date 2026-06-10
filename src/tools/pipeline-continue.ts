@@ -469,7 +469,7 @@ export async function pipelineContinue(
             current_agent: newStage.agent,
             stage_description: newStage.description,
             total_stages: template.stages.length,
-            message: `已推进到第 ${state.current_stage + 1}/${template.stages.length} 阶段：由 [${newStage.agent}] 为您服务。${newStage.description ? '\n任务：' + newStage.description : ''}\n\n请开始对话。`,
+        message: slotWarning + `已推进到第 ${state.current_stage + 1}/${template.stages.length} 阶段：由 [${newStage.agent}] 为您服务。${newStage.description ? '\n任务：' + newStage.description : ''}\n\n请开始对话。`,
             status_panel: buildStatusPanel(state, template, state.current_stage),
           };
         }
@@ -479,6 +479,25 @@ export async function pipelineContinue(
     }
 
     if (isAdvanceSignal(message)) {
+      // P0-4: Checkpoint 空 slot 警告 — 检测 orchestrator 用 route_message 绕过 slot 写入
+      let slotWarning = '';
+      const curStage = template.stages[state.current_stage];
+      if (curStage?.checkpoint) {
+        const primarySlot = curStage.allow_write?.[0];
+        if (primarySlot) {
+          const slotValue = state.slot_values[primarySlot];
+          if (!slotValue || (typeof slotValue === 'string' && slotValue.trim() === '')) {
+            const currentIdx = state.current_stage;
+            const hasDownstreamReader = template.stages.slice(currentIdx + 1)
+              .some(s => s.allow_read.includes(primarySlot) || s.allow_read.includes('*'));
+            if (hasDownstreamReader) {
+              slotWarning =
+                `[checkpoint 警告] 当前阶段 [${curStage.agent}] 产出槽 "${primarySlot}" 为空，后续 Agent 将无法读取其上下文。` +
+                `如果用 route_message 路由了消息（不写 slot），请改用 pipeline_continue。\n\n`;
+            }
+          }
+        }
+      }
       // P0-3: 记录当前 stage id，用于检查 interrupt
       const completedStageId = template.stages[state.current_stage]?.id;
 
@@ -499,7 +518,7 @@ export async function pipelineContinue(
           current_stage_name: template.stages[state.current_stage]?.id ?? '',
           current_agent: template.stages[state.current_stage]?.agent ?? '',
           total_stages: template.stages.length,
-          message: interrupt.message,
+          message: slotWarning + interrupt.message,
           status_panel: buildStatusPanel(state, template, state.current_stage),
         };
       }
@@ -518,7 +537,7 @@ export async function pipelineContinue(
           status: 'completed', action_taken: 'completed',
           current_stage: state.current_stage, current_stage_name: '完成', current_agent: '',
           total_stages: template.stages.length,
-          message: '所有阶段已完成！感谢使用部虾创。',
+          message: slotWarning + '所有阶段已完成！感谢使用部虾创。',
           status_panel: buildStatusPanel(state, template, state.current_stage),
         };
       }
