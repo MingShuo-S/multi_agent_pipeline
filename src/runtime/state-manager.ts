@@ -300,12 +300,16 @@ export class StateManager {
   }
 
   /**
-   * 扫描工作区，找到唯一 status='running' 的活跃 state
+   * 扫描工作区，找到唯一的活跃 state。
+   * 优先找 status='running'，回退找最近修改的 status='completed'。
+   * 用于 pipeline_read/write_slot/add_remark 在管道完成后仍能定位项目。
    */
   static async findActiveState(workspaceRoot: string): Promise<{ userId: string; projectId: string; state: PipelineState } | null> {
     const { promises: fs } = await import('fs');
     const path = await import('path');
     const projectsDir = path.default.join(workspaceRoot, 'projects');
+    let runningFound: { userId: string; projectId: string; state: PipelineState } | null = null;
+    let completedFallback: { userId: string; projectId: string; state: PipelineState; mtime: number } | null = null;
     try {
       const userDirs = await fs.readdir(projectsDir);
       for (const userId of userDirs) {
@@ -322,7 +326,13 @@ export class StateManager {
             const content = await fs.readFile(statePath, 'utf-8');
             const state: PipelineState = JSON.parse(content);
             if (state.status === 'running') {
-              return { userId, projectId, state };
+              runningFound = { userId, projectId, state };
+            } else if (state.status === 'completed') {
+              const stat = await fs.stat(statePath).catch(() => null);
+              const mtime = stat?.mtimeMs ?? 0;
+              if (!completedFallback || mtime > completedFallback.mtime) {
+                completedFallback = { userId, projectId, state, mtime };
+              }
             }
           } catch {
             continue;
@@ -331,6 +341,6 @@ export class StateManager {
       }
     } catch {
     }
-    return null;
+    return runningFound || (completedFallback ? { userId: completedFallback.userId, projectId: completedFallback.projectId, state: completedFallback.state } : null);
   }
 }

@@ -87,6 +87,7 @@
   - 截断、缩写、重新排版
 - 唯一允许的附加：在最后一行之后追加 "继续对话或输入「下一阶段」推进"
 - **禁止用 `pipeline_read` 自己总结内容**——那会浪费 token 且用户看到的是转述而非原内容
+- **必须传 user_id + project_id**：`pipeline_display(user_id="default-user", project_id="nju-night-ride-002")`，不要只传 slot_name
 
 ### 规则 6：工作区路径
 - pipeline 的工作区根路径是 `/root/multi_agent_pipeline/workspace`
