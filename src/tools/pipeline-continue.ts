@@ -426,6 +426,25 @@ export async function pipelineContinue(
       template = await configManager.readTemplate(state.template_name);
     }
 
+    // P0-4: 预先计算 checkpoint 空 slot 警告（供所有推进路径使用）
+    let slotWarning = '';
+    const curStage = template.stages[state.current_stage];
+    if (curStage?.checkpoint) {
+      const primarySlot = curStage.allow_write?.[0];
+      if (primarySlot) {
+        const slotValue = state.slot_values[primarySlot];
+        if (!slotValue || (typeof slotValue === 'string' && slotValue.trim() === '')) {
+          const currentIdx = state.current_stage;
+          const hasDownstreamReader = template.stages.slice(currentIdx + 1)
+            .some(s => s.allow_read.includes(primarySlot) || s.allow_read.includes('*'));
+          if (hasDownstreamReader) {
+            slotWarning =
+              `[checkpoint 警告] 当前阶段 [${curStage.agent}] 产出槽 "${primarySlot}" 为空，后续 Agent 将无法读取其上下文。` +
+              `如果用 route_message 路由了消息（不写 slot），请改用 pipeline_continue。\n\n`;
+          }
+        }
+      }
+    }
     // P0-3: 先检查是否有 pending interrupt
     if (state.pending_interrupt) {
       const { handled, result } = await handlePendingInterrupt(stateManager, state, template, message, root, userId);
@@ -479,25 +498,6 @@ export async function pipelineContinue(
     }
 
     if (isAdvanceSignal(message)) {
-      // P0-4: Checkpoint 空 slot 警告 — 检测 orchestrator 用 route_message 绕过 slot 写入
-      let slotWarning = '';
-      const curStage = template.stages[state.current_stage];
-      if (curStage?.checkpoint) {
-        const primarySlot = curStage.allow_write?.[0];
-        if (primarySlot) {
-          const slotValue = state.slot_values[primarySlot];
-          if (!slotValue || (typeof slotValue === 'string' && slotValue.trim() === '')) {
-            const currentIdx = state.current_stage;
-            const hasDownstreamReader = template.stages.slice(currentIdx + 1)
-              .some(s => s.allow_read.includes(primarySlot) || s.allow_read.includes('*'));
-            if (hasDownstreamReader) {
-              slotWarning =
-                `[checkpoint 警告] 当前阶段 [${curStage.agent}] 产出槽 "${primarySlot}" 为空，后续 Agent 将无法读取其上下文。` +
-                `如果用 route_message 路由了消息（不写 slot），请改用 pipeline_continue。\n\n`;
-            }
-          }
-        }
-      }
       // P0-3: 记录当前 stage id，用于检查 interrupt
       const completedStageId = template.stages[state.current_stage]?.id;
 
