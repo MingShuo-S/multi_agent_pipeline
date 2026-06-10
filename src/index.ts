@@ -44,6 +44,14 @@ export default defineToolPlugin({
   name: '部虾创 - 多 Agent 接力流水线引擎',
   description: '部虾创：多 Agent 协作接力引擎。每个专家与用户直接对话，人在回路决定推进节奏。Slot 权限隔离 + 版本历史全程可追溯。内置风格学习系统。',
 
+  contracts: {
+    tools: [
+      'memory_write', 'memory_read', 'knowledge_read',
+      'session_search', 'snapshot_create', 'snapshot_read',
+      'session_note_write', 'session_note_read', 'memory_compress',
+    ],
+  },
+
   tools: (tool) => [
     tool({
       name: 'pipeline_read',
